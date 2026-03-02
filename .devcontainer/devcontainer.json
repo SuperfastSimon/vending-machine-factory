@@ -1,0 +1,18 @@
+{
+  "name": "Vending Machine Factory (Vercel Node 20)",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-20-bullseye",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "editor.formatOnSave": true
+      },
+      "extensions": [
+        "Prisma.prisma",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  },
+  "postCreateCommand": "npm install -g vercel && npm install && echo 'DATABASE_URL=\"postgresql://dummy:dummy@localhost:5432/dummy\"\nDIRECT_URL=\"postgresql://dummy:dummy@localhost:5432/dummy\"' > .env && npx prisma generate",
+  "forwardPorts": [3000]
+}
