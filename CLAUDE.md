@@ -18,28 +18,45 @@ This file provides AI assistants with context about the codebase structure, conv
 
 ```
 vending-machine-factory/
-├── .devcontainer/          # VS Code devcontainer (Node 20, auto-installs deps)
-├── .github/workflows/      # CI pipeline (ci.yml)
-├── app/                    # Next.js App Router pages and layouts
-│   ├── (public)/          # Route group — publicly accessible pages
-│   │   ├── page.tsx       # Landing/home page
+├── .claude/
+│   └── rules/                  # AI assistant rules and reference docs
+│       ├── CLAUDE.md           # Platform engineer role rules (Vercel/GitHub)
+│       ├── github-actions.md   # GitHub Actions security and best practices
+│       ├── vercel-deploy.md    # Vercel deployment checklist and rules
+│       ├── 01_Vending_Machine_Architecture.md
+│       ├── 02_AutoGPT_API_Wrapper.ts
+│       ├── Vending_Machine_Factory_Deploy_Guide.md
+│       └── Vending_Machine_Factory_Repo_Analysis.md
+├── .devcontainer/              # VS Code devcontainer (Node 20, auto-installs deps)
+├── .github/workflows/
+│   └── ci.yml                  # CI pipeline (SHA-pinned actions, concurrency, timeouts)
+├── app/                        # Next.js App Router pages and layouts
+│   ├── (public)/               # Route group — publicly accessible pages
+│   │   ├── page.tsx            # Landing/home page
 │   │   ├── auth/
 │   │   │   ├── login/page.tsx
 │   │   │   └── register/page.tsx
 │   │   └── pricing/page.tsx
-│   ├── layout.tsx          # Root layout (includes Vercel Analytics)
-│   └── globals.css         # Global Tailwind + CSS variable styles
+│   ├── dashboard/
+│   │   └── page.tsx            # Customer dashboard (plan, credits, upgrade prompt)
+│   ├── owner/
+│   │   └── page.tsx            # Owner admin panel (user table, plan stats, credits)
+│   ├── layout.tsx              # Root layout (includes Vercel Analytics)
+│   └── globals.css             # Global Tailwind + CSS variable styles (light/dark)
 ├── config/
-│   └── product.ts          # Central product metadata and pricing config
+│   └── product.ts              # Central product metadata, pricing, and agent config
 ├── prisma/
-│   └── schema.prisma       # Prisma schema (User model, PostgreSQL)
-├── reviews/                # PR review comment artifacts
-├── middleware.ts            # Auth middleware — protects /dashboard and /owner
-├── next-env.d.ts           # Next.js TypeScript declarations
-├── tsconfig.json           # TypeScript config (strict mode, @/* alias)
-├── .eslintrc.json          # ESLint (next/core-web-vitals)
-├── vercel.json             # Vercel deployment + security headers
-└── package.json            # Dependencies and scripts
+│   └── schema.prisma           # Prisma schema (User model, PostgreSQL)
+├── reviews/                    # PR review comment artifacts
+├── middleware.ts               # Auth middleware — protects /dashboard and /owner
+├── tailwind.config.ts          # Tailwind content paths + CSS variable theme tokens
+├── postcss.config.js           # PostCSS pipeline (Tailwind + Autoprefixer)
+├── next-env.d.ts               # Next.js TypeScript declarations
+├── tsconfig.json               # TypeScript config (strict mode, @/* alias)
+├── .eslintrc.json              # ESLint (next/core-web-vitals)
+├── .gitignore                  # Ignores node_modules, .next, .env*.local, *.tsbuildinfo
+├── vercel.json                 # Vercel deployment + security headers
+└── package.json                # Dependencies and scripts (engines: node 20.x)
 ```
 
 ---
@@ -64,13 +81,18 @@ vending-machine-factory/
 
 Defined in `.github/workflows/ci.yml`. Triggers on every push and pull request.
 
+Key properties:
+- Actions pinned to full SHA hashes (not tags) for supply chain security
+- `concurrency` group cancels in-progress runs on the same ref
+- `timeout-minutes` set at both job level (15 min) and per step
+
 Steps:
 1. Checkout code
 2. Set up Node.js 20 (npm cache enabled)
-3. `npm ci`
-4. `npx prisma generate`
-5. `npx tsc --noEmit`
-6. `npm run build` (uses placeholder Supabase credentials in CI)
+3. `npm ci` (5 min timeout)
+4. `npx prisma generate` (2 min timeout)
+5. `npx tsc --noEmit` (3 min timeout)
+6. `npm run build` (5 min timeout, uses placeholder Supabase credentials in CI)
 
 ---
 
@@ -105,7 +127,8 @@ Authentication is handled by **Supabase SSR** using cookie-based JWT sessions.
 
 - `middleware.ts` intercepts all requests and validates the Supabase session.
 - Protected routes: `/dashboard/**` and `/owner/**` — unauthenticated users are redirected to `/auth/login`.
-- Public routes include `/`, `/auth/login`, `/auth/register`, `/pricing`.
+- Public routes: `/`, `/auth/login`, `/auth/register`, `/pricing`.
+- Owner-only access: `/owner` additionally checks `user.email === process.env.OWNER_EMAIL` and redirects to `/dashboard` if the check fails.
 
 ### Required Environment Variables
 
@@ -116,16 +139,35 @@ POSTGRES_URL=
 POSTGRES_URL_NON_POOLING=
 STRIPE_SECRET_KEY=
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
+OWNER_EMAIL=                        # Email address that gets /owner admin access
 ```
 
 ---
 
 ## Product Configuration
 
-All product metadata and pricing lives in **`config/product.ts`**. Update this file to change:
-- Product name and tagline
+All product metadata and pricing lives in **`config/product.ts`**. The exported object is `productConfig`. Update this file to change:
+- Product name, slug, tagline, and description
 - Brand colors (`primary: "#6366f1"`, `secondary: "#8b5cf6"`)
 - Pricing tiers and credit allocations
+- AutoGPT agent connection (`agentId`, `apiEndpoint`)
+- Affiliate system settings
+
+### Shape of `productConfig`
+
+```typescript
+{
+  name, slug, tagline, description,
+  theme: { primary, secondary },
+  pricing: {
+    currency,
+    plans: [{ id, name, price, credits, features }],
+  },
+  agentId: "",        // AutoGPT agent library ID — fill per product
+  apiEndpoint: "",    // AutoGPT External API base URL — fill per product
+  affiliate: { enabled, commissionPercent, cookieDays },
+}
+```
 
 ### Current Pricing Tiers
 
@@ -153,7 +195,9 @@ All product metadata and pricing lives in **`config/product.ts`**. Update this f
 
 ### Styling
 - **Tailwind CSS** utility classes are used throughout.
-- CSS variables are defined in `app/globals.css` for theme tokens (supports light/dark mode).
+- CSS variables are defined in `app/globals.css` for theme tokens (supports light/dark mode via `.dark` class).
+- `tailwind.config.ts` maps those CSS variables into Tailwind color tokens (`background`, `foreground`, `primary`, `secondary`, etc.).
+- `postcss.config.js` runs Tailwind and Autoprefixer in the build pipeline.
 - Do not add inline styles — use Tailwind or CSS variables.
 
 ### ESLint
@@ -192,16 +236,17 @@ A devcontainer configuration is provided at `.devcontainer/devcontainer.json` fo
 1. **Supabase for auth, Prisma for data** — Supabase handles JWT/session management; Prisma manages application data in PostgreSQL. User IDs from Supabase Auth are stored as the `User.id` in Prisma.
 2. **Credits system** — Each user has a `credits_remaining` counter. Free users start with 5 credits; paid plans grant more.
 3. **Route protection in middleware** — Auth is enforced at the edge in `middleware.ts`, not per-page. Add new protected path prefixes there.
-4. **Centralized config** — Pricing, branding, and feature flags live in `config/product.ts` to avoid magic strings scattered across the codebase.
+4. **Owner guard in page** — `/owner` does a secondary email check inside the Server Component itself (`OWNER_EMAIL` env var), so non-owner authenticated users are redirected rather than shown a 403.
+5. **Centralized config** — Pricing, branding, and feature flags live in `config/product.ts` to avoid magic strings scattered across the codebase.
 
 ---
 
 ## What Does Not Exist Yet
 
 - Automated tests (no Jest, Vitest, or Playwright configured)
-- `/dashboard` implementation (route exists in middleware but no pages yet)
-- `/owner` admin panel (protected but not built)
 - Stripe webhook handler
 - API routes (`app/api/`)
+- AutoGPT agent integration (agent proxy, execution polling)
+- Stripe Checkout / Customer Portal flows
 
 When adding these, follow the existing App Router conventions.
