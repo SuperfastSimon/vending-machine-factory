@@ -81,5 +81,4 @@ async function logUsage(userId: string, executionId: string): Promise<void> {
     where: { id: userId },
     data: { credits_remaining: { decrement: 1 } },
   });
-  console.log(`[agent/run] user=${userId} executionId=${executionId}`);
 }

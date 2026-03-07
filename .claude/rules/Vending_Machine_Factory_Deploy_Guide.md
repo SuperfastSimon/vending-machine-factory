@@ -19,7 +19,7 @@ Env var: AUTOGPT_API_KEY
 Scopes: EXECUTE_GRAPH, READ_GRAPH
 ```
 
-> **agpt API Key**  agpt_eKWACzE0g7-EC2zwEFmKEz9UA9MJgC9sItr8K0PwZQM
+> **agpt API Key**  stel in via `AUTOGPT_API_KEY` environment variable — nooit hardcoded in code of docs
 
 ---
 
