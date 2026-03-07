@@ -103,5 +103,4 @@ async function logUsage(userId: string, executionId: string, agentId: string): P
       },
     }),
   ]);
-  console.log(`[agent/run] user=${userId} executionId=${executionId}`);
 }
