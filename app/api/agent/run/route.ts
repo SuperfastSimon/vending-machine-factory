@@ -19,9 +19,7 @@ export async function POST(request: NextRequest) {
         get(name: string) {
           return request.cookies.get(name)?.value;
         },
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         set(_name: string, _value: string) {},
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         remove(_name: string) {},
       },
     }
