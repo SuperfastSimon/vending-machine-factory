@@ -1,55 +1,51 @@
-// ============================================================
-// AutoGPT API WRAPPER — The connection layer between your
+// ===============================================================
+// AUTOGPT API WRAPPER - The connection layer between your
 // vending machine frontend and AutoGPT agents
 //
-// tap this into: /en/docs/autogpt.io
+// Drop this into: /lib/autogpt.ts
 //
 // API Docs: https://backend.agpt.co/external-api/docs
 // Auth: X-API-Key header
 // Scopes: EXECUTE_GRAPH, READ_GRAPH
-// ============================================================
+// ===============================================================
 
-// ============================================================
+// ------------------------------------------------------
 // TYPES
-// ============================================================
+// ------------------------------------------------------
 
 export interface AgentConfig {
-  executionId: string;
-  status: "completed" | "running" | "failed" | "paused";
-  inputs: Record<string, string>;
-  stepResults?: Record<string, unknown>[];
+  libraryId: string;
+  graphId: string;
 }
 
 export interface ExecutionResult {
   executionId: string;
-  status: "completed" | "running" | "failed" | "paused";
+  status: "completed" | "running" | "failed" | "queued";
   outputs: Record<string, unknown>;
-  stepResults: Record<string, unknown>[];
-  startedAt: string | null;
-  endedAt: string | null;
+  startedAt: string;
+  completedAt?: string;
 }
 
 export interface AgentRunRequest {
-  inputs: Record<string, string>;
+  inputs: Record<string, unknown>;
 }
 
-// ============================================================
+// ------------------------------------------------------
 // CORE API CLIENT
-// ============================================================
+// ------------------------------------------------------
 
 const AUTOGPT_BASE_URL =
-  process.env.NEXT_PUBLIC_AUTOGPT_API_URL ??
-  "https://backend.agpt.co/external-api";
+  process.env.AUTOGPT_API_URL ?? "https://backend.agpt.co/external-api";
+const API_KEY = process.env.AUTOGPT_API_KEY!;
 
 async function autogptFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const apiKey = process.env.AUTOGPT_API_KEY;
   const response = await fetch(`${AUTOGPT_BASE_URL}${endpoint}`, {
     ...options,
     headers: {
-      "X-Api-Key": apiKey ?? "",
+      "X-API-Key": API_KEY,
       "Content-Type": "application/json",
       ...options.headers,
     },
@@ -63,25 +59,26 @@ async function autogptFetch(
   return response;
 }
 
-// ============================================================
+// ------------------------------------------------------
 // AGENT OPERATIONS
-// ============================================================
+// ------------------------------------------------------
 
 /**
  * Trigger an agent run from a customer action.
  * This is the core "vending machine" action:
- * customer pays -> agent runs -> customers get value
+ * customer pays -> agent runs -> customer gets value
  */
 export async function triggerAgentRun(
   graphId: string,
-  inputs: Record<string, string>
+  inputs: Record<string, unknown>
 ): Promise<{ executionId: string }> {
-  const result = await autogptFetch(`/1/graphs/${graphId}/execute`, {
+  const response = await autogptFetch(`/v1/graphs/${graphId}/execute`, {
     method: "POST",
-    body: JSON.stringify({ inputs }),
+    body: JSON.stringify(inputs),
   });
 
-  return result.json() as Promise<{ executionId: string }>;
+  const result = await response.json() as Record<string, unknown>;
+  return { executionId: (result.id ?? result.execution_id) as string };
 }
 
 /**
@@ -92,11 +89,18 @@ export async function getExecutionStatus(
   graphId: string,
   executionId: string
 ): Promise<ExecutionResult> {
-  const result = await autogptFetch(
-    `/1/graphs/${graphId}/executions/${executionId}`
+  const response = await autogptFetch(
+    `/v1/graphs/${graphId}/executions/${executionId}`
   );
 
-  return result.json() as Promise<ExecutionResult>;
+  const result = await response.json() as Record<string, unknown>;
+  return {
+    executionId,
+    status: (result.status ?? "running") as ExecutionResult["status"],
+    outputs: (result.output ?? result.outputs ?? {}) as Record<string, unknown>,
+    startedAt: (result.started_at ?? result.created_at) as string,
+    completedAt: (result.ended_at ?? result.completed_at) as string | undefined,
+  };
 }
 
 /**
@@ -105,14 +109,21 @@ export async function getExecutionStatus(
 export async function listExecutions(
   graphId: string
 ): Promise<ExecutionResult[]> {
-  const result = await autogptFetch(`/1/graphs/${graphId}/executions`);
-
-  return result.json() as Promise<ExecutionResult[]>;
+  const response = await autogptFetch(`/v1/graphs/${graphId}/executions`);
+  return response.json() as Promise<ExecutionResult[]>;
 }
 
-// ============================================================
+/**
+ * Get available agents from the library
+ */
+export async function listLibraryAgents(): Promise<unknown[]> {
+  const response = await autogptFetch("/v1/library/agents");
+  return response.json() as Promise<unknown[]>;
+}
+
+// ------------------------------------------------------
 // POLLING HELPER (for UI)
-// ============================================================
+// ------------------------------------------------------
 
 /**
  * Poll for execution completion.
@@ -120,27 +131,30 @@ export async function listExecutions(
  *
  * Example usage in a React component:
  *   const result = await pollExecution(graphId, executionId, (status) => {
- *     setProgress(status);
+ *     setProgress(status); // Update UI in real-time
  *   });
  */
 export async function pollExecution(
   graphId: string,
   executionId: string,
-  onUpdate?: (status: ExecutionResult) => void,
-  timeoutMs = 5 * 60 * 1000 // 5 minutes
+  onStatusUpdate?: (status: ExecutionResult) => void,
+  pollIntervalMs = 2000,
+  timeoutMs = 300000 // 5 minutes
 ): Promise<ExecutionResult> {
-  const deadline = Date.now() + timeoutMs;
+  const startTime = Date.now();
 
-  while (Date.now() < deadline) {
+  while (Date.now() - startTime < timeoutMs) {
     const status = await getExecutionStatus(graphId, executionId);
 
-    if (onUpdate) onUpdate(status);
+    if (onStatusUpdate) {
+      onStatusUpdate(status);
+    }
 
     if (status.status === "completed" || status.status === "failed") {
       return status;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
   }
 
   throw new Error("Execution timed out");

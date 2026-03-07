@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 3. Get customer inputs
-  const body = await request.json() as { inputs?: Record<string, string> };
+  const body = await request.json() as { inputs?: Record<string, unknown> };
   const inputs = body.inputs ?? {};
 
   // 4. Trigger the AutoGPT agent run
