@@ -28,7 +28,19 @@ export default async function DashboardPage() {
 
   if (!user) redirect("/auth/login");
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+  let dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+
+  // Auto-create Prisma user on first login (after Supabase signup)
+  if (!dbUser) {
+    dbUser = await prisma.user.create({
+      data: {
+        id: user.id,
+        email: user.email!,
+        plan: "free",
+        credits_remaining: 5,
+      },
+    });
+  }
 
   const plan = dbUser?.plan ?? "free";
   const credits = dbUser?.credits_remaining ?? 0;
