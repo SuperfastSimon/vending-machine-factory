@@ -1,16 +1,47 @@
-// File: /app/api/agent/status/[executionId]/route.ts
-// Customer polls this for results
-
 import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 import { getExecutionStatus } from "@/lib/autogpt";
 import { productConfig } from "@/config/product";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ executionId: string }> }
 ) {
-  const { executionId } = await params;
-  const status = await getExecutionStatus(productConfig.agent.graphId, executionId);
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value;
+        },
+        set(_name: string, _value: string) {},
+        remove(_name: string) {},
+      },
+    }
+  );
 
-  return NextResponse.json(status);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { executionId } = await params;
+
+  try {
+    const result = await getExecutionStatus(
+      productConfig.agent.graphId,
+      executionId
+    );
+    return NextResponse.json(result);
+  } catch (err) {
+    console.error("AutoGPT status error:", err);
+    return NextResponse.json(
+      { error: "Failed to get execution status." },
+      { status: 500 }
+    );
+  }
 }

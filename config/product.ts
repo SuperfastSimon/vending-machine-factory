@@ -16,10 +16,14 @@ export const productConfig = {
   // falls back to https://backend.agpt.co/external-api
   // -------------------------------------------------------
   agent: {
-    libraryId: "", // ← pick from availableAgents below
-    graphId: "",   // ← pick from availableAgents below
+    libraryId: "6387fd67-6aea-4090-9cca-fed50f747cdc",
+    graphId: "cd0870a3-0a0f-425e-91cf-041b84548ef7",
     inputSchema: {
-      prompt: { type: "textarea", label: "Describe your request" },
+      prompt: {
+        type: "textarea" as const,
+        label: "Describe your business idea",
+        placeholder: "e.g. An AI tool that helps freelancers automatically manage their invoices and follow up on late payments...",
+      },
     },
     outputDisplay: "markdown" as const, // "markdown" | "json" | "html"
   },
