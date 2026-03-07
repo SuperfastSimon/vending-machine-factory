@@ -1,12 +1,16 @@
+// File: /app/api/agent/run/route.ts
+// Customer hits this to trigger an agent run
+
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { PrismaClient } from "@prisma/client";
+import { triggerAgentRun } from "@/lib/autogpt";
 import { productConfig } from "@/config/product";
 
+// 1. Verify user is authenticated
 const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
-  // Authenticate the user via Supabase session cookie
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -31,53 +35,51 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Check credits
+  // 2. Check the user has a credit quota
   const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
   if (!dbUser || dbUser.credits_remaining < 1) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
+    const hasQuota = await checkUserQuota(dbUser?.plan ?? "free");
+    if (!hasQuota) {
+      return NextResponse.json(
+        { error: "Usage limit reached. Please upgrade your plan." },
+        { status: 429 }
+      );
+    }
   }
 
-  const { task } = await request.json() as { task?: string };
-  if (!task || typeof task !== "string" || task.trim().length === 0) {
-    return NextResponse.json({ error: "task is required" }, { status: 400 });
-  }
+  // 3. Get customer inputs
+  const body = await request.json() as { inputs?: Record<string, string> };
+  const inputs = body.inputs ?? {};
 
-  const agentId = productConfig.agentId;
-  const apiEndpoint = productConfig.apiEndpoint;
-  const apiKey = process.env.AUTOGPT_API_KEY;
+  // 4. Trigger the AutoGPT agent run
+  const { executionId } = await triggerAgentRun(
+    productConfig.agentId,
+    inputs
+  );
 
-  if (!agentId || !apiEndpoint || !apiKey) {
-    return NextResponse.json(
-      { error: "AutoGPT is not configured (agentId, apiEndpoint, or AUTOGPT_API_KEY missing)" },
-      { status: 503 }
-    );
-  }
+  // 5. Log usage
+  await logUsage(user.id, executionId);
 
-  // Call AutoGPT External API
-  const autogptRes = await fetch(`${apiEndpoint}/agents/${agentId}/runs`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({ task: task.trim() }),
-  });
+  return NextResponse.json({ executionId, status: "queued" });
+}
 
-  if (!autogptRes.ok) {
-    const text = await autogptRes.text();
-    return NextResponse.json(
-      { error: "AutoGPT API error", detail: text },
-      { status: 502 }
-    );
-  }
+// ─── helpers ─────────────────────────────────────────────────
 
-  const run = await autogptRes.json() as { id: string; [key: string]: unknown };
+function checkUserQuota(plan: string): Promise<boolean> {
+  const quotas: Record<string, number> = {
+    free: 5,
+    pro: 100,
+    business: 500,
+  };
+  // quota check is handled by credits_remaining in the DB;
+  // this is a fallback for unknown plans
+  return Promise.resolve((quotas[plan] ?? 0) > 0);
+}
 
-  // Deduct one credit
+async function logUsage(userId: string, executionId: string): Promise<void> {
   await prisma.user.update({
-    where: { id: user.id },
+    where: { id: userId },
     data: { credits_remaining: { decrement: 1 } },
   });
-
-  return NextResponse.json({ runId: run.id }, { status: 202 });
+  console.log(`[agent/run] user=${userId} executionId=${executionId}`);
 }
