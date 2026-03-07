@@ -1,11 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { PrismaClient } from "@prisma/client";
 import { productConfig } from "@/config/product";
+import { prisma } from "@/lib/prisma";
 import AgentInterface from "@/components/AgentInterface";
-
-const prisma = new PrismaClient();
 
 export default async function DashboardPage() {
   const cookieStore = cookies();
