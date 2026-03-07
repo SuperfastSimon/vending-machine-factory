@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
   // 4. Trigger the AutoGPT agent run
   const { executionId } = await triggerAgentRun(
-    productConfig.agentId,
+    productConfig.agent.graphId,
     inputs
   );
 

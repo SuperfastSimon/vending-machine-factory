@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: Promise<{ executionId: string }> }
 ) {
   const { executionId } = await params;
-  const status = await getExecutionStatus(productConfig.agentId, executionId);
+  const status = await getExecutionStatus(productConfig.agent.graphId, executionId);
 
   return NextResponse.json(status);
 }
