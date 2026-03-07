@@ -116,6 +116,9 @@ POSTGRES_URL=
 POSTGRES_URL_NON_POOLING=
 STRIPE_SECRET_KEY=
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
+AUTOGPT_API_KEY=               # API key for the AutoGPT External API
+AUTOGPT_WEBHOOK_SECRET=        # Shared secret to verify AutoGPT webhook callbacks
+OWNER_EMAIL=                   # Email of the admin user with access to /owner
 ```
 
 ---
@@ -202,6 +205,7 @@ A devcontainer configuration is provided at `.devcontainer/devcontainer.json` fo
 - `/dashboard` implementation (route exists in middleware but no pages yet)
 - `/owner` admin panel (protected but not built)
 - Stripe webhook handler
-- API routes (`app/api/`)
+- `app/api/agent/run` — triggers an AutoGPT agent run and deducts one credit (implemented)
+- `app/api/webhooks/autogpt` — receives AutoGPT completion callbacks (implemented; add DB persistence as needed)
 
 When adding these, follow the existing App Router conventions.
