@@ -15,11 +15,21 @@ export const productConfig = {
       { id: "business", name: "Business", price: 49, credits: 500, features: ["Everything", "White-label"] },
     ],
   },
-  agentId: "", // AutoGPT agent library ID — filled per product
-  apiEndpoint: "", // AutoGPT External API endpoint
+  agent: {
+    libraryId: "6387fd67-6aea-4090-9cca-fed50f747cdc",
+    graphId: "cd0870a3-0a0f-425e-91cf-041b84548ef7",
+    inputSchema: {
+      prompt: {
+        type: "textarea" as const,
+        label: "Describe your business idea",
+        placeholder: "e.g. An AI tool that helps freelancers automatically manage their invoices and follow up on late payments...",
+      },
+    },
+    outputDisplay: "text" as const,
+  },
   affiliate: {
     enabled: true,
     commissionPercent: 20,
     cookieDays: 30,
   },
-}
+};
