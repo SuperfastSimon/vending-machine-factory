@@ -4,9 +4,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     agentRun: {
-      update: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({
+        user: { email: "test@example.com" },
+      }),
     },
   },
+}));
+
+vi.mock("@/lib/email", () => ({
+  sendRunCompletedEmail: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { POST } from "@/app/api/webhooks/autogpt/route";
@@ -68,6 +74,7 @@ describe("POST /api/webhooks/autogpt", () => {
     expect(prisma.agentRun.update).toHaveBeenCalledWith({
       where: { execution_id: "run-123" },
       data: { status: "completed", output: "result text", error: null },
+      include: { user: { select: { email: true } } },
     });
   });
 });

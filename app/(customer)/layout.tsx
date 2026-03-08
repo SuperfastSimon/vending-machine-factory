@@ -4,6 +4,7 @@ import { productConfig } from "@/config/product";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import LogoutButton from "@/components/LogoutButton";
+import { sendWelcomeEmail } from "@/lib/email";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -33,6 +34,9 @@ export default async function CustomerLayout({
         credits_remaining: 5,
       },
     });
+    sendWelcomeEmail(user.email!).catch((err) =>
+      console.error("[email] welcome email failed:", err)
+    );
   }
 
   return (

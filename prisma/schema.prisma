@@ -13,8 +13,11 @@ model User {
   plan              String     @default("free")
   credits_remaining   Int        @default(5)
   stripe_customer_id  String?    @unique
+  api_key             String?    @unique
+  referral_code       String?    @unique
+  referred_by         String?
   created_at          DateTime   @default(now())
-  agent_runs        AgentRun[]
+  agent_runs          AgentRun[]
 }
 
 model AgentRun {

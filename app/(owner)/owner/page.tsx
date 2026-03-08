@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { productConfig } from "@/config/product";
+import RunsChart from "@/components/RunsChart";
 
 export default async function OwnerDashboardPage() {
   const [users, planCounts, recentRuns, runStats] = await Promise.all([
@@ -25,6 +26,31 @@ export default async function OwnerDashboardPage() {
     runStats.map((r) => [r.status, r._count._all])
   );
 
+  // Build daily run counts for the last 14 days
+  const fourteenDaysAgo = new Date();
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+  const dailyRuns = await prisma.agentRun.findMany({
+    where: { created_at: { gte: fourteenDaysAgo } },
+    select: { created_at: true },
+  });
+
+  const runsByDay: Record<string, number> = {};
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    runsByDay[d.toISOString().slice(0, 10)] = 0;
+  }
+  for (const run of dailyRuns) {
+    const day = run.created_at.toISOString().slice(0, 10);
+    if (day in runsByDay) runsByDay[day]++;
+  }
+
+  const chartData = Object.entries(runsByDay).map(([date, runs]) => ({
+    date: date.slice(5), // MM-DD
+    runs,
+  }));
+
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
@@ -43,6 +69,9 @@ export default async function OwnerDashboardPage() {
         <StatCard label="Completed runs" value={runStatMap["completed"] ?? 0} />
         <StatCard label="Failed runs" value={runStatMap["failed"] ?? 0} />
       </div>
+
+      {/* Runs chart */}
+      <RunsChart data={chartData} />
 
       {/* Recent agent runs */}
       <section className="bg-white rounded-lg border border-gray-200 overflow-hidden">

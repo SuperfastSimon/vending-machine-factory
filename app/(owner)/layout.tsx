@@ -7,6 +7,7 @@ import LogoutButton from "@/components/LogoutButton";
 const navItems = [
   { href: "/owner", label: "Dashboard" },
   { href: "/customers", label: "Customers" },
+  { href: "/billing", label: "Billing" },
   { href: "/settings", label: "Settings" },
 ];
 
