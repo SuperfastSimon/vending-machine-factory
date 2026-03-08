@@ -11,9 +11,13 @@ model User {
   id                String     @id @db.Uuid
   email             String     @unique
   plan              String     @default("free")
-  credits_remaining Int        @default(5)
-  created_at        DateTime   @default(now())
-  agent_runs        AgentRun[]
+  credits_remaining   Int        @default(5)
+  stripe_customer_id  String?    @unique
+  api_key             String?    @unique
+  referral_code       String?    @unique
+  referred_by         String?
+  created_at          DateTime   @default(now())
+  agent_runs          AgentRun[]
 }
 
 model AgentRun {

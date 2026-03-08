@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendRunCompletedEmail } from "@/lib/email";
 
 /**
  * POST /api/webhooks/autogpt
@@ -45,14 +46,22 @@ export async function POST(request: NextRequest) {
   }
 
   // Persist run results to the database
-  await prisma.agentRun.update({
+  const agentRun = await prisma.agentRun.update({
     where: { execution_id: runId },
     data: {
       status,
       output: output ?? null,
       error: error ?? null,
     },
+    include: { user: { select: { email: true } } },
   });
+
+  // Notify the user via email (non-blocking)
+  if (status === "completed" || status === "failed") {
+    sendRunCompletedEmail(agentRun.user.email, runId, status).catch((err) =>
+      console.error("[email] failed to send:", err)
+    );
+  }
 
   console.log(`AutoGPT webhook — run ${runId} (agent ${agentId}): ${status}`);
 

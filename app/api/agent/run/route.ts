@@ -6,6 +6,7 @@ import { createServerClient } from "@supabase/ssr";
 import { triggerAgentRun } from "@/lib/autogpt";
 import { productConfig } from "@/config/product";
 import { prisma } from "@/lib/prisma";
+import { authenticateApiKey } from "@/lib/api-auth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,16 +24,27 @@ export async function POST(request: NextRequest) {
       }
     );
 
+    // 1. Authenticate via Supabase session or API key
+    let userId: string | null = null;
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (user) {
+      userId = user.id;
+    } else {
+      userId = await authenticateApiKey(
+        request.headers.get("authorization")
+      );
+    }
+
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // 2. Check the user has a credit quota
-    const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+    const dbUser = await prisma.user.findUnique({ where: { id: userId } });
     if (!dbUser || dbUser.credits_remaining < 1) {
       const hasQuota = await checkUserQuota(dbUser?.plan ?? "free");
       if (!hasQuota) {
@@ -54,7 +66,7 @@ export async function POST(request: NextRequest) {
     );
 
     // 5. Log usage and create agent run record
-    await logUsage(user.id, executionId, productConfig.agent.graphId);
+    await logUsage(userId, executionId, productConfig.agent.graphId);
 
     return NextResponse.json({ executionId, status: "queued" });
   } catch (err) {
