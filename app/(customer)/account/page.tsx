@@ -2,6 +2,9 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { productConfig } from "@/config/product";
+import { ensureReferralCode } from "@/lib/affiliate";
+import { headers } from "next/headers";
+import ManageSubscriptionButton from "@/components/ManageSubscriptionButton";
 
 export default async function AccountPage() {
   const supabase = createSupabaseServerClient();
@@ -17,6 +20,16 @@ export default async function AccountPage() {
   const runCount = await prisma.agentRun.count({
     where: { user_id: user.id },
   });
+
+  const referralCode = productConfig.affiliate.enabled
+    ? await ensureReferralCode(user.id)
+    : null;
+  const hdrs = await headers();
+  const host = hdrs.get("host") ?? "localhost:3000";
+  const protocol = host.startsWith("localhost") ? "http" : "https";
+  const referralLink = referralCode
+    ? `${protocol}://${host}/?ref=${referralCode}`
+    : null;
 
   return (
     <main className="max-w-xl mx-auto px-4 sm:px-6 py-10 space-y-6">
@@ -37,14 +50,28 @@ export default async function AccountPage() {
         />
       </div>
 
-      {plan === "free" && (
+      {referralLink && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-2">
+          <p className="text-sm font-medium text-gray-900">Referral link</p>
+          <p className="text-xs text-gray-500">
+            Share this link and earn {productConfig.affiliate.commissionPercent}% commission on referrals.
+          </p>
+          <code className="block text-xs bg-gray-50 rounded-lg px-3 py-2 text-gray-700 break-all select-all">
+            {referralLink}
+          </code>
+        </div>
+      )}
+
+      {plan === "free" ? (
         <a
           href="/pricing"
           className="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-lg text-sm transition-colors"
         >
           Upgrade to {productConfig.pricing.plans[1]?.name ?? "Pro"} →
         </a>
-      )}
+      ) : dbUser?.stripe_customer_id ? (
+        <ManageSubscriptionButton />
+      ) : null}
     </main>
   );
 }

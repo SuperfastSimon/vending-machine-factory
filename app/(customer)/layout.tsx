@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import LogoutButton from "@/components/LogoutButton";
 import { sendWelcomeEmail } from "@/lib/email";
+import { trackReferral, ensureReferralCode } from "@/lib/affiliate";
+import { cookies } from "next/headers";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -36,6 +38,18 @@ export default async function CustomerLayout({
     });
     sendWelcomeEmail(user.email!).catch((err) =>
       console.error("[email] welcome email failed:", err)
+    );
+    // Track affiliate referral if ref_code cookie exists
+    const cookieStore = await cookies();
+    const refCode = cookieStore.get("ref_code")?.value;
+    if (refCode) {
+      trackReferral(dbUser.id, refCode).catch((err) =>
+        console.error("[affiliate] trackReferral failed:", err)
+      );
+    }
+    // Generate referral code for the new user
+    ensureReferralCode(dbUser.id).catch((err) =>
+      console.error("[affiliate] ensureReferralCode failed:", err)
     );
   }
 

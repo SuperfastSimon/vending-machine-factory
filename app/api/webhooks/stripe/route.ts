@@ -37,11 +37,14 @@ export async function POST(request: NextRequest) {
       const userId = session.metadata?.userId;
       const plan = session.metadata?.plan;
       if (userId && plan) {
+        const stripeCustomerId =
+          typeof session.customer === "string" ? session.customer : null;
         await prisma.user.update({
           where: { id: userId },
           data: {
             plan,
             credits_remaining: creditsForPlan[plan] ?? 5,
+            ...(stripeCustomerId && { stripe_customer_id: stripeCustomerId }),
           },
         });
         console.log(`[stripe] user ${userId} upgraded to ${plan}`);

@@ -24,8 +24,19 @@ export async function middleware(request: NextRequest) {
     }
   )
 
+  // Capture referral code from ?ref= query param into a cookie
+  const ref = request.nextUrl.searchParams.get('ref')
+  if (ref && !request.cookies.get('ref_code')?.value) {
+    response.cookies.set('ref_code', ref, {
+      httpOnly: true,
+      maxAge: 30 * 24 * 60 * 60, // 30 days
+      path: '/',
+      sameSite: 'lax',
+    })
+  }
+
   const { data: { user } } = await supabase.auth.getUser()
-  const protectedPrefixes = ['/dashboard', '/owner', '/history', '/account', '/billing', '/customers', '/settings']
+  const protectedPrefixes = ['/dashboard', '/owner', '/agents', '/history', '/account', '/billing', '/customers', '/settings']
   const isProtected = protectedPrefixes.some((p) => request.nextUrl.pathname.startsWith(p))
 
   if (isProtected && !user) {
