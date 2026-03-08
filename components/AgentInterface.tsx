@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAgentRun } from "@/hooks/useAgentRun";
 
 interface Props {
   credits: number;
@@ -12,101 +13,23 @@ interface Props {
   };
 }
 
-type RunStatus = "idle" | "submitting" | "polling" | "completed" | "error";
-
-function extractOutput(outputs: Record<string, unknown>): string {
-  // Try common output keys from AutoGPT agents
-  for (const key of ["result", "text", "content", "output", "response", "answer"]) {
-    if (typeof outputs[key] === "string") return outputs[key] as string;
-  }
-  // Fall back to first string value found
-  for (const val of Object.values(outputs)) {
-    if (typeof val === "string" && val.length > 0) return val;
-  }
-  // Last resort: pretty-print the object
-  return JSON.stringify(outputs, null, 2);
-}
-
 export default function AgentInterface({ credits, inputSchema }: Props) {
   const [prompt, setPrompt] = useState("");
-  const [status, setStatus] = useState<RunStatus>("idle");
-  const [output, setOutput] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [creditsLeft, setCreditsLeft] = useState(credits);
-  const [elapsed, setElapsed] = useState(0);
+
+  const { status, output, error, elapsed, submit, reset } = useAgentRun({
+    onComplete: () => {},
+  });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!prompt.trim() || creditsLeft <= 0) return;
-
-    setStatus("submitting");
-    setOutput(null);
-    setError(null);
-    setElapsed(0);
-
-    // Trigger agent run
-    let executionId: string;
-    try {
-      const res = await fetch("/api/agent/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ inputs: { prompt: prompt.trim() } }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Failed to start agent.");
-        setStatus("error");
-        return;
-      }
-      executionId = data.executionId;
-      setCreditsLeft((c) => c - 1);
-    } catch {
-      setError("Network error. Please check your connection and try again.");
-      setStatus("error");
-      return;
-    }
-
-    // Poll for completion
-    setStatus("polling");
-    const startTime = Date.now();
-    const timer = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startTime) / 1000));
-    }, 1000);
-
-    try {
-      while (true) {
-        await new Promise((r) => setTimeout(r, 3000));
-        const res = await fetch(`/api/agent/status/${executionId}`);
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error ?? "Failed to get status.");
-        }
-
-        if (data.status === "completed") {
-          setOutput(extractOutput(data.outputs));
-          setStatus("completed");
-          break;
-        }
-
-        if (data.status === "failed") {
-          throw new Error("The agent run failed. Please try again.");
-        }
-
-        // still running / queued — keep polling
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-      setStatus("error");
-    } finally {
-      clearInterval(timer);
-    }
+    setCreditsLeft((c) => c - 1);
+    await submit({ prompt: prompt.trim() });
   }
 
   function handleReset() {
-    setStatus("idle");
-    setOutput(null);
-    setError(null);
+    reset();
     setPrompt("");
   }
 
@@ -133,7 +56,6 @@ export default function AgentInterface({ credits, inputSchema }: Props) {
       </div>
 
       <div className="p-6 space-y-5">
-        {/* Input form — only show when not running and no output yet */}
         {status !== "completed" && (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -184,7 +106,6 @@ export default function AgentInterface({ credits, inputSchema }: Props) {
           </form>
         )}
 
-        {/* Loading state */}
         {isRunning && (
           <div className="rounded-lg bg-indigo-50 border border-indigo-100 p-5">
             <div className="flex items-start gap-3">
@@ -210,7 +131,6 @@ export default function AgentInterface({ credits, inputSchema }: Props) {
           </div>
         )}
 
-        {/* Error state */}
         {status === "error" && error && (
           <div className="rounded-lg bg-red-50 border border-red-200 p-4">
             <p className="text-sm font-medium text-red-800">{error}</p>
@@ -223,7 +143,6 @@ export default function AgentInterface({ credits, inputSchema }: Props) {
           </div>
         )}
 
-        {/* Output */}
         {status === "completed" && output && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">

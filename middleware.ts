@@ -25,7 +25,8 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  const isProtected = request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/owner')
+  const protectedPrefixes = ['/dashboard', '/owner', '/history', '/account']
+  const isProtected = protectedPrefixes.some((p) => request.nextUrl.pathname.startsWith(p))
 
   if (isProtected && !user) {
     return NextResponse.redirect(new URL('/auth/login', request.url))
