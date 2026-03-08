@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 /**
  * POST /api/webhooks/autogpt
@@ -43,13 +44,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  // TODO: persist run results to your database, notify the user, etc.
-  // Example: await prisma.agentRun.update({ where: { id: runId }, data: { status, output } })
-
-  console.log(`AutoGPT webhook — run ${runId} (agent ${agentId}): ${status}`, {
-    output,
-    error,
+  // Persist run results to the database
+  await prisma.agentRun.update({
+    where: { execution_id: runId },
+    data: {
+      status,
+      output: output ?? null,
+      error: error ?? null,
+    },
   });
+
+  console.log(`AutoGPT webhook — run ${runId} (agent ${agentId}): ${status}`);
 
   return NextResponse.json({ received: true });
 }

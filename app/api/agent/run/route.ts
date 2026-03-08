@@ -53,8 +53,8 @@ export async function POST(request: NextRequest) {
       inputs
     );
 
-    // 5. Log usage
-    await logUsage(user.id, executionId);
+    // 5. Log usage and create agent run record
+    await logUsage(user.id, executionId, productConfig.agent.graphId);
 
     return NextResponse.json({ executionId, status: "queued" });
   } catch (err) {
@@ -76,10 +76,20 @@ function checkUserQuota(plan: string): Promise<boolean> {
   return Promise.resolve((quotas[plan] ?? 0) > 0);
 }
 
-async function logUsage(userId: string, executionId: string): Promise<void> {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { credits_remaining: { decrement: 1 } },
-  });
+async function logUsage(userId: string, executionId: string, agentId: string): Promise<void> {
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: { credits_remaining: { decrement: 1 } },
+    }),
+    prisma.agentRun.create({
+      data: {
+        user_id: userId,
+        agent_id: agentId,
+        execution_id: executionId,
+        status: "queued",
+      },
+    }),
+  ]);
   console.log(`[agent/run] user=${userId} executionId=${executionId}`);
 }
