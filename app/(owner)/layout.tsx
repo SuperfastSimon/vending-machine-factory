@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import { productConfig } from "@/config/product";
 import Link from "next/link";
+import LogoutButton from "@/components/LogoutButton";
 
 const navItems = [
   { href: "/owner", label: "Dashboard" },
@@ -43,7 +44,10 @@ export default async function OwnerLayout({
             ))}
           </nav>
         </div>
-        <span className="text-sm text-gray-500">{user.email}</span>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-gray-500">{user.email}</span>
+          <LogoutButton />
+        </div>
       </header>
       <main className="max-w-6xl mx-auto px-6 py-10">{children}</main>
     </div>

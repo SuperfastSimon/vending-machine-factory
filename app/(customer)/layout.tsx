@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { productConfig } from "@/config/product";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import LogoutButton from "@/components/LogoutButton";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -69,6 +70,7 @@ export default async function CustomerLayout({
           >
             {dbUser.plan}
           </span>
+          <LogoutButton />
         </div>
       </header>
       {children}

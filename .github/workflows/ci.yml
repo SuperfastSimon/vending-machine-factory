@@ -21,6 +21,8 @@ jobs:
       timeout-minutes: 5
     - run: npx prisma generate
       timeout-minutes: 2
+    - run: npm test
+      timeout-minutes: 3
     - run: npx tsc --noEmit
       timeout-minutes: 3
     - run: npm run build
