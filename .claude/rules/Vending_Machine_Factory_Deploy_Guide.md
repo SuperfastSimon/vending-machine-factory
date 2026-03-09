@@ -51,7 +51,7 @@ Scopes: EXECUTE_GRAPH, READ_GRAPH
 
 ## 3. Vending Machine Config Template
 
-Elk product wordt geconfigureerd via `config/vending-machine.ts`:
+Elk product wordt geconfigureerd via `config/product.ts`:
 
 ```typescript
 export const VENDING_MACHINE_CONFIG = {
@@ -105,11 +105,15 @@ export const VENDING_MACHINE_CONFIG = {
 # AutoGPT
 AUTOGPT_API_KEY=jouw_api_key_hier
 AUTOGPT_API_URL=https://backend.agpt.co/external-api/
+AUTOGPT_WEBHOOK_SECRET=              # Shared secret to verify AutoGPT webhook callbacks
 
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+
+# Database (Prisma)
+POSTGRES_URL=                        # Pooled connection (for app runtime)
+POSTGRES_URL_NON_POOLING=            # Direct connection (for migrations)
 
 # Stripe
 STRIPE_SECRET_KEY=
@@ -117,19 +121,21 @@ STRIPE_WEBHOOK_SECRET=
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
 
 # Auth
-NEXTAUTH_SECRET=
-NEXTAUTH_URL=http://localhost:3000
+OWNER_EMAIL=martin@example.com       # Email of the admin user with access to /owner routes
+
+# Email (Optional)
+RESEND_API_KEY=                      # Resend API key for transactional emails
+EMAIL_FROM=                          # Sender address (default: product name via resend.dev)
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-OWNER_EMAILS=martin@example.com
 ```
 
 ---
 
 ## 5. API Wrapper (Samenvatting)
 
-**Locatie:** `/src/lib/autogpt.ts`
+**Locatie:** `lib/autogpt.ts`
 
 | Functie | Endpoint | Methode |
 |---------|----------|---------|
@@ -149,14 +155,14 @@ const { executionId } = await triggerAgentRun(
 
 ---
 
-## 6. Architectuur: Dual Frontend
+## 6. Architectuur: Dual Frontend (Implemented)
 
 ```
 /app
- ├── /(owner)/          → Owner Dashboard (KPIs, agents, customers, settings)
- ├── /(customer)/       → Customer UI (product interface, history, account)
- ├── /(public)/         → Landing page, pricing, auth
- └── /api/              → Agent proxy, webhooks, cron
+ ├── /(owner)/          → Owner Dashboard (KPIs, agents, customers, settings, billing)
+ ├── /(customer)/       → Customer UI (dashboard, product, history, account)
+ ├── /(public)/         → Landing page, pricing, auth (login + register)
+ └── /api/              → Agent proxy, auth, billing, checkout, cron, keys, webhooks
 ```
 
 ---
@@ -173,23 +179,24 @@ const { executionId } = await triggerAgentRun(
 
 | Layer | Technologie |
 |-------|-------------|
-| Framework | Next.js 15 (App Router) |
-| UI | Tailwind CSS + shadcn/ui |
-| Auth | NextAuth.js v5 / Clerk |
-| Database | Supabase (Postgres) |
-| ORM | Prisma / Drizzle |
+| Framework | Next.js 14 (App Router) |
+| UI | Tailwind CSS |
+| Auth | Supabase SSR (cookie-based JWT) |
+| Database | Supabase (PostgreSQL) |
+| ORM | Prisma 5 |
 | Payments | Stripe |
-| Charts | Recharts / Tremor |
+| Charts | Recharts |
 | AI Backend | AutoGPT External API |
 | Hosting | Vercel |
 | Email | Resend |
+| Testing | Vitest |
 
 ---
 
 ## 9. Deploy Checklist (Per Nieuwe Vending Machine)
 
 - [ ] Fork template repo op GitHub
-- [ ] Update `config/vending-machine.ts` (naam, kleuren, agent IDs)
+- [ ] Update `config/product.ts` (naam, kleuren, agent IDs)
 - [ ] Customise customer product page
 - [ ] Stel Stripe producten/prijzen in
 - [ ] Zet environment variables in Vercel
@@ -204,15 +211,20 @@ const { executionId } = await triggerAgentRun(
 ## 10. Huidige Status
 
 - ✅ Architectuur blueprint compleet
-- ✅ AutoGPT API wrapper geschreven
-- ✅ AI prompts gedefinieerd (7 prompts voor Bolt/v0/Cursor/Lovable)
-- ✅ Frontend research gedaan
-- ✅ Basis React app (Business Plan Form)
-- ⚠️ Nog op Vite/React (niet Next.js zoals gepland)
-- ⚠️ Geen auth, database, of Stripe integratie
-- ⚠️ Geen /src structuur volgens blueprint
+- ✅ Next.js 14 App Router (migrated from Vite/React)
+- ✅ Dual frontend (owner + customer + public) — all pages built
+- ✅ AutoGPT API wrapper + useAgentRun hook
+- ✅ Supabase SSR auth with middleware
+- ✅ Stripe integration (checkout, billing portal, webhooks)
+- ✅ Prisma ORM (User + AgentRun models)
+- ✅ Affiliate system (referral codes, tracking)
+- ✅ API key authentication (Pro+)
+- ✅ Email notifications (Resend)
+- ✅ Vitest test suite (7 files, 27 tests)
+- ✅ CI pipeline (GitHub Actions: test + typecheck + build)
+- ✅ Health check endpoint
 
 ---
 
-*Samengesteld door Otto — AutoGPT Co-Pilot*  
-*Datum: 3 maart 2026*
+*Samengesteld door Otto — AutoGPT Co-Pilot*
+*Laatst bijgewerkt: maart 2026*
