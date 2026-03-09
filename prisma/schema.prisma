@@ -8,9 +8,40 @@ datasource db {
   directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 model User {
-  id                String   @id @db.Uuid
-  email             String   @unique
-  plan              String   @default("free")
-  credits_remaining Int      @default(5)
-  created_at        DateTime @default(now())
+  id                String      @id @db.Uuid
+  email             String      @unique
+  role              String      @default("customer") // 'owner' or 'customer'
+  plan              String      @default("free")
+  credits_remaining Int         @default(5)
+  created_at        DateTime    @default(now())
+  executions        Execution[]
+  usage             Usage[]
+}
+
+model Execution {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  user       User     @relation(fields: [user_id], references: [id])
+  agent_id   String
+  input      Json
+  output     Json?
+  status     String   @default("pending") // pending, running, completed, failed
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+model Usage {
+  id           String   @id @default(uuid()) @db.Uuid
+  user_id      String   @db.Uuid
+  user         User     @relation(fields: [user_id], references: [id])
+  credits_used Int
+  description  String?
+  created_at   DateTime @default(now())
+}
+
+model ProductSettings {
+  id         String   @id @default(uuid()) @db.Uuid
+  key        String   @unique
+  value      String
+  updated_at DateTime @updatedAt
 }
