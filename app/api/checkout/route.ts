@@ -30,7 +30,45 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = (await request.json()) as { planId?: string };
+  const body = (await request.json()) as { planId?: string; packId?: string };
+
+  // One-time credit pack purchase
+  if (body.packId) {
+    const pack = productConfig.pricing.creditPacks?.find(
+      (p) => p.id === body.packId
+    );
+    if (!pack || pack.price === 0) {
+      return NextResponse.json({ error: "Invalid credit pack" }, { status: 400 });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      customer_email: user.email ?? undefined,
+      line_items: [
+        {
+          price_data: {
+            currency: productConfig.pricing.currency.toLowerCase(),
+            product_data: {
+              name: `${productConfig.name} — ${pack.name}`,
+            },
+            unit_amount: pack.price * 100,
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        userId: user.id,
+        type: "credit_pack",
+        credits: String(pack.credits),
+      },
+      success_url: `${request.nextUrl.origin}/dashboard?credits=purchased`,
+      cancel_url: `${request.nextUrl.origin}/pricing`,
+    });
+
+    return NextResponse.json({ url: session.url });
+  }
+
+  // Subscription plan checkout
   const plan = productConfig.pricing.plans.find((p) => p.id === body.planId);
 
   if (!plan || plan.price === 0) {

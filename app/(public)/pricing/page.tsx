@@ -27,6 +27,27 @@ export default function Pricing() {
     }
   }
 
+  async function handleBuyCredits(packId: string) {
+    setLoading(packId);
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packId }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error ?? "Something went wrong.");
+      }
+    } catch {
+      alert("Network error. Please try again.");
+    } finally {
+      setLoading(null);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-16 px-4">
       <div className="max-w-4xl mx-auto text-center">
@@ -97,6 +118,53 @@ export default function Pricing() {
           </div>
         ))}
       </div>
+
+      {/* Credit Packs */}
+      {productConfig.pricing.creditPacks &&
+        productConfig.pricing.creditPacks.length > 0 && (
+          <div className="mt-16 max-w-4xl mx-auto">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Or buy credits individually
+              </h2>
+              <p className="mt-2 text-gray-500">
+                No subscription needed — pay per use
+              </p>
+            </div>
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+              {productConfig.pricing.creditPacks.map((pack) => (
+                <div
+                  key={pack.id}
+                  className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col items-center text-center"
+                >
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {pack.name}
+                  </h3>
+                  <p className="mt-2">
+                    <span className="text-3xl font-bold text-gray-900">
+                      {pack.price}
+                    </span>
+                    <span className="text-sm text-gray-500">
+                      {" "}
+                      {productConfig.pricing.currency}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-xs text-gray-400">
+                    {(pack.price / pack.credits).toFixed(2)}{" "}
+                    {productConfig.pricing.currency}/credit
+                  </p>
+                  <button
+                    onClick={() => handleBuyCredits(pack.id)}
+                    disabled={loading === pack.id}
+                    className="mt-4 w-full bg-gray-900 hover:bg-gray-800 disabled:bg-gray-400 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
+                  >
+                    {loading === pack.id ? "Redirecting..." : "Buy credits"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
     </div>
   );
 }

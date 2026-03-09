@@ -35,6 +35,11 @@ export const productConfig = {
       { id: "pro",      name: "Pro",      price: 19, credits: 100, features: ["Priority", "API access"] },
       { id: "business", name: "Business", price: 49, credits: 500, features: ["Everything", "White-label"] },
     ],
+    creditPacks: [
+      { id: "pack-5",  name: "5 credits",  credits: 5,  price: 3 },
+      { id: "pack-20", name: "20 credits", credits: 20, price: 9 },
+      { id: "pack-50", name: "50 credits", credits: 50, price: 19 },
+    ],
   },
 
   affiliate: {

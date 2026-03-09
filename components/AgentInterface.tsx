@@ -82,6 +82,10 @@ export default function AgentInterface({ credits, inputSchema }: Props) {
                 <a href="/pricing" className="font-semibold underline hover:text-amber-900">
                   Upgrade your plan
                 </a>{" "}
+                or{" "}
+                <a href="/pricing#credit-packs" className="font-semibold underline hover:text-amber-900">
+                  buy individual credits
+                </a>{" "}
                 to continue.
               </div>
             ) : (

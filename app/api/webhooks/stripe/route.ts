@@ -35,19 +35,39 @@ export async function POST(request: NextRequest) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.userId;
-      const plan = session.metadata?.plan;
-      if (userId && plan) {
-        const stripeCustomerId =
-          typeof session.customer === "string" ? session.customer : null;
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            plan,
-            credits_remaining: creditsForPlan[plan] ?? 5,
-            ...(stripeCustomerId && { stripe_customer_id: stripeCustomerId }),
-          },
-        });
-        console.log(`[stripe] user ${userId} upgraded to ${plan}`);
+      const type = session.metadata?.type;
+
+      if (userId && type === "credit_pack") {
+        const credits = parseInt(session.metadata?.credits ?? "0", 10);
+        if (credits > 0) {
+          const stripeCustomerId =
+            typeof session.customer === "string" ? session.customer : null;
+          await prisma.user.update({
+            where: { id: userId },
+            data: {
+              credits_remaining: { increment: credits },
+              ...(stripeCustomerId && { stripe_customer_id: stripeCustomerId }),
+            },
+          });
+          console.log(
+            `[stripe] user ${userId} purchased ${credits} credits`
+          );
+        }
+      } else if (userId) {
+        const plan = session.metadata?.plan;
+        if (plan) {
+          const stripeCustomerId =
+            typeof session.customer === "string" ? session.customer : null;
+          await prisma.user.update({
+            where: { id: userId },
+            data: {
+              plan,
+              credits_remaining: creditsForPlan[plan] ?? 5,
+              ...(stripeCustomerId && { stripe_customer_id: stripeCustomerId }),
+            },
+          });
+          console.log(`[stripe] user ${userId} upgraded to ${plan}`);
+        }
       }
       break;
     }

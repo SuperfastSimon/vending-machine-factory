@@ -90,6 +90,28 @@ describe("POST /api/webhooks/stripe", () => {
     });
   });
 
+  it("handles checkout.session.completed for credit pack purchase", async () => {
+    mockConstructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          metadata: { userId: "user-1", type: "credit_pack", credits: "20" },
+          customer: "cus_123",
+        },
+      },
+    });
+
+    const res = await POST(makeRequest("body"));
+    expect(res.status).toBe(200);
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: {
+        credits_remaining: { increment: 20 },
+        stripe_customer_id: "cus_123",
+      },
+    });
+  });
+
   it("handles customer.subscription.deleted event", async () => {
     mockConstructEvent.mockReturnValue({
       type: "customer.subscription.deleted",

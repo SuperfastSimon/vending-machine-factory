@@ -24,6 +24,16 @@ describe("productConfig", () => {
       expect(plan.credits).toBeGreaterThanOrEqual(0);
     }
   });
+
+  it("has credit packs with valid prices and credits", () => {
+    expect(productConfig.pricing.creditPacks).toBeDefined();
+    expect(productConfig.pricing.creditPacks!.length).toBeGreaterThan(0);
+    for (const pack of productConfig.pricing.creditPacks!) {
+      expect(pack.id).toBeTruthy();
+      expect(pack.credits).toBeGreaterThan(0);
+      expect(pack.price).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe("availableAgents", () => {
