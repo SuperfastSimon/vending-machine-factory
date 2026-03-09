@@ -10,72 +10,100 @@ This file provides AI assistants with context about the codebase structure, conv
 - **Database:** PostgreSQL (via Prisma ORM)
 - **Auth:** Supabase SSR with cookie-based JWT sessions
 - **AI Backend:** AutoGPT External API (`lib/autogpt.ts`)
+- **Email:** Resend (`lib/email.ts`)
+- **Testing:** Vitest (`vitest.config.ts`)
 - **Deployment:** Vercel (configured via `vercel.json`)
-- **Version:** 0.1.0 (early stage)
+- **Version:** 0.1.0
 
 ---
 
-## Planned App Structure (Dual Frontend)
+## App Structure (Dual Frontend)
 
-The target routing architecture has three route groups:
+All three route groups are implemented:
 
 ```
 app/
-├── (owner)/                # Owner Dashboard — protected, role: owner
-│   ├── dashboard/          # KPIs, revenue, agent status
-│   ├── agents/             # Trigger, monitor, view logs
-│   ├── customers/          # Customer list, usage, revenue per user
-│   ├── settings/           # Product config, pricing, branding
-│   ├── billing/            # Revenue, payouts, Stripe dashboard
-│   └── layout.tsx          # Owner sidebar layout
+├── (owner)/                # Owner Dashboard — protected, role: owner (OWNER_EMAIL)
+│   ├── owner/              # KPIs, revenue chart, agent status (main dashboard)
+│   ├── agents/             # Agent management
+│   ├── customers/          # Customer list with run counts
+│   ├── settings/           # Product config display, env var status
+│   ├── billing/            # Revenue, payouts
+│   └── layout.tsx          # Owner sidebar layout with nav + LogoutButton
 │
-├── (customer)/             # Customer UI — protected, role: customer
-│   ├── dashboard/          # Customer's personal dashboard
-│   ├── [product]/          # The product interface (custom per vending machine)
-│   ├── history/            # Past runs, outputs, downloads
-│   ├── account/            # Profile, subscription, billing
-│   └── layout.tsx          # Customer nav layout
+├── (customer)/             # Customer UI — protected, any authenticated user
+│   ├── dashboard/          # Customer dashboard with AgentInterface
+│   ├── [product]/          # Dynamic product page (lookup from availableAgents)
+│   ├── history/            # Past runs
+│   ├── account/            # Profile, subscription, API key management
+│   └── layout.tsx          # Customer nav layout (auto-creates user in Prisma, tracks referrals)
 │
 ├── (public)/               # Public pages — no auth required
-│   ├── page.tsx            # Landing / marketing page
-│   ├── pricing/            # Pricing page
-│   └── auth/               # Login / signup
+│   ├── page.tsx            # Landing page
+│   ├── pricing/            # Pricing page (client component, wired to Stripe checkout)
+│   └── auth/               # Login + Register pages
+│       ├── login/
+│       └── register/
 │
 ├── api/
-│   ├── agent/              # AutoGPT agent proxy routes
-│   │   ├── run/            # POST — trigger a run, deduct credit
+│   ├── agent/
+│   │   ├── run/            # POST — trigger agent run, deduct credit
 │   │   └── status/[executionId]/  # GET — poll for result
-│   ├── webhooks/           # Stripe + AutoGPT webhooks
-│   └── cron/               # Scheduled tasks / health checks
+│   ├── auth/
+│   │   └── logout/         # POST — clear Supabase session
+│   ├── billing/
+│   │   └── portal/         # POST — create Stripe billing portal session
+│   ├── checkout/           # POST — create Stripe checkout session
+│   ├── cron/
+│   │   └── health/         # GET — health check ({ status, timestamp })
+│   ├── keys/               # POST/DELETE — generate/revoke API keys (Pro+ only)
+│   └── webhooks/
+│       ├── autogpt/        # POST — AutoGPT execution webhook
+│       └── stripe/         # POST — Stripe webhook (checkout, invoice, subscription)
 │
 ├── layout.tsx              # Root layout (Vercel Analytics)
 └── globals.css             # Global Tailwind + CSS variables
 ```
 
-**Currently built:** `(public)/` routes and `api/agent/` routes. Owner and customer dashboards are next.
-
 ---
 
-## Current Repository Structure
+## Repository Structure
 
 ```
 vending-machine-factory/
 ├── .claude/rules/          # Behavioral rules for AI assistants
-├── .devcontainer/          # VS Code devcontainer (Node 20)
+├── .devcontainer/          # VS Code devcontainer (Node 22)
 ├── .github/workflows/      # CI pipeline (ci.yml)
-├── app/
-│   ├── (public)/           # Landing, pricing, auth pages
-│   ├── api/agent/          # run/ and status/[executionId]/ routes
-│   ├── api/webhooks/       # autogpt/ webhook handler
-│   ├── layout.tsx
-│   └── globals.css
+├── __tests__/              # Vitest test files (7 test files, 27 tests)
+│   ├── affiliate.test.ts
+│   ├── api-auth.test.ts
+│   ├── autogpt-webhook.test.ts
+│   ├── cron-health.test.ts
+│   ├── product-config.test.ts
+│   ├── stripe-webhook.test.ts
+│   └── useAgentRun.test.ts
+├── app/                    # Next.js App Router (see structure above)
+├── components/
+│   ├── AgentInterface.tsx  # Main agent interaction UI (form, status, output)
+│   ├── LogoutButton.tsx    # Client component, calls /api/auth/logout
+│   ├── ManageSubscriptionButton.tsx  # Opens Stripe billing portal
+│   ├── RunsChart.tsx       # Recharts chart for agent run stats
+│   └── StatusBadge.tsx     # Status indicator badge
 ├── config/
-│   └── product.ts          # Product metadata, pricing, agent IDs
+│   └── product.ts          # Product metadata, pricing, agent IDs, availableAgents
+├── hooks/
+│   └── useAgentRun.ts      # React hook: submit agent run, poll status, track elapsed time
 ├── lib/
-│   └── autogpt.ts          # AutoGPT External API wrapper
+│   ├── affiliate.ts        # Referral code generation and tracking
+│   ├── api-auth.ts         # API key authentication (Bearer vmf_xxx)
+│   ├── autogpt.ts          # AutoGPT External API wrapper
+│   ├── email.ts            # Resend email (welcome + run completed notifications)
+│   ├── prisma.ts           # Prisma client singleton
+│   └── supabase-server.ts  # Server-side Supabase client factory
 ├── prisma/
-│   └── schema.prisma       # User model (PostgreSQL)
-├── middleware.ts            # Auth middleware — protects /dashboard and /owner
+│   └── schema.prisma       # User + AgentRun models (PostgreSQL)
+├── middleware.ts            # Auth middleware + referral cookie capture
+├── vitest.config.ts         # Vitest configuration
 ├── tsconfig.json
 ├── vercel.json
 └── package.json
@@ -91,11 +119,10 @@ vending-machine-factory/
 | `npm run build` | Generate Prisma client + build Next.js for production |
 | `npm run start` | Start production server |
 | `npm run lint` | Run ESLint |
+| `npm test` | Run Vitest test suite (`vitest run`) |
 | `npx prisma generate` | Regenerate Prisma client after schema changes |
 | `npx prisma migrate dev` | Apply DB migrations in development |
 | `npx tsc --noEmit` | Type-check without emitting files |
-
-**Note:** There are currently no automated tests. The CI pipeline runs type-checking and a full build instead.
 
 ---
 
@@ -105,11 +132,12 @@ Defined in `.github/workflows/ci.yml`. Triggers on every push and pull request.
 
 Steps:
 1. Checkout code
-2. Set up Node.js 20 (npm cache enabled)
+2. Set up Node.js 22 (npm cache enabled)
 3. `npm ci`
 4. `npx prisma generate`
-5. `npx tsc --noEmit`
-6. `npm run build` (uses placeholder Supabase credentials in CI)
+5. `npm test` (Vitest)
+6. `npx tsc --noEmit`
+7. `npm run build` (uses placeholder Supabase credentials in CI)
 
 ---
 
@@ -122,17 +150,37 @@ Steps:
 - `POSTGRES_URL` — pooled connection (for app runtime)
 - `POSTGRES_URL_NON_POOLING` — direct connection (for migrations)
 
-### User Model (`prisma/schema.prisma`)
+### Models (`prisma/schema.prisma`)
 
 ```prisma
 model User {
-  id                String   @id @default(uuid())
-  email             String   @unique
-  plan              String   @default("free")
-  credits_remaining Int      @default(5)
-  created_at        DateTime @default(now())
+  id                  String     @id @db.Uuid
+  email               String     @unique
+  plan                String     @default("free")
+  credits_remaining   Int        @default(5)
+  stripe_customer_id  String?    @unique
+  api_key             String?    @unique
+  referral_code       String?    @unique
+  referred_by         String?
+  created_at          DateTime   @default(now())
+  agent_runs          AgentRun[]
+}
+
+model AgentRun {
+  id           String   @id @default(uuid())
+  user_id      String   @db.Uuid
+  agent_id     String
+  execution_id String   @unique
+  status       String   @default("queued")
+  output       String?
+  error        String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  user         User     @relation(fields: [user_id], references: [id])
 }
 ```
+
+Note: `User.id` is set from Supabase Auth (not auto-generated by Prisma).
 
 After any schema changes, run `npx prisma generate` and `npx prisma migrate dev`.
 
@@ -143,7 +191,9 @@ After any schema changes, run `npx prisma generate` and `npx prisma migrate dev`
 Authentication is handled by **Supabase SSR** using cookie-based JWT sessions.
 
 - `middleware.ts` intercepts all requests and validates the Supabase session.
-- Protected routes: `/dashboard/**` and `/owner/**` — unauthenticated users are redirected to `/auth/login`.
+- Protected path prefixes: `/dashboard`, `/owner`, `/agents`, `/history`, `/account`, `/billing`, `/customers`, `/settings`.
+- The middleware also captures `?ref=` query params into a `ref_code` cookie (30 days) for the affiliate system.
+- Owner access is determined by matching `user.email` against the `OWNER_EMAIL` env var (checked in the owner layout).
 - Public routes include `/`, `/auth/login`, `/auth/register`, `/pricing`.
 
 ### Required Environment Variables
@@ -154,11 +204,15 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 POSTGRES_URL=
 POSTGRES_URL_NON_POOLING=
 STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
 AUTOGPT_API_KEY=               # API key for the AutoGPT External API
 AUTOGPT_API_URL=               # Optional override (default: https://backend.agpt.co/external-api)
 AUTOGPT_WEBHOOK_SECRET=        # Shared secret to verify AutoGPT webhook callbacks
-OWNER_EMAIL=                   # Email of the admin user with access to /owner
+OWNER_EMAIL=                   # Email of the admin user with access to /owner routes
+RESEND_API_KEY=                # Optional — Resend API key for transactional emails
+EMAIL_FROM=                    # Optional — sender address (default: product name via resend.dev)
+NEXT_PUBLIC_APP_URL=           # Optional — base URL for email links
 ```
 
 ---
@@ -171,7 +225,7 @@ All product metadata and pricing lives in **`config/product.ts`**. Update this f
 - Pricing tiers and credit allocations
 - Affiliate system settings
 
-The `availableAgents` export in the same file lists all connected AutoGPT agents with their IDs. Copy the relevant IDs into `productConfig.agent` when forking for a specific product.
+The `availableAgents` export in the same file lists all connected AutoGPT agents (16 agents) with their IDs. Copy the relevant IDs into `productConfig.agent` when forking for a specific product.
 
 ### Current Pricing Tiers
 
@@ -205,18 +259,61 @@ The connection layer lives in **`lib/autogpt.ts`**.
 4. Frontend polls `GET /api/agent/status/[executionId]` until `completed` or `failed`
 5. Display outputs to customer
 
+### Frontend Hook
+
+`hooks/useAgentRun.ts` provides the `useAgentRun()` React hook:
+- States: `idle` → `submitting` → `polling` → `completed` | `error`
+- Tracks elapsed time during polling
+- Extracts output from various response shapes (result, text, content, etc.)
+
+---
+
+## Stripe Integration
+
+- **Checkout:** `POST /api/checkout` creates a Stripe checkout session for paid plans.
+- **Billing portal:** `POST /api/billing/portal` creates a Stripe billing portal session for subscription management.
+- **Webhooks:** `POST /api/webhooks/stripe` handles:
+  - `checkout.session.completed` — upgrade user plan + set credits
+  - `invoice.paid` — refresh credits on renewal
+  - `customer.subscription.deleted` — downgrade to free plan
+
+---
+
+## Affiliate System
+
+- Managed in `lib/affiliate.ts`
+- Referral codes are generated as `ref_` + 12 hex chars
+- `?ref=CODE` query params are captured in middleware as cookies
+- On user registration (in customer layout), referrals are tracked via `referred_by` field
+- Config in `productConfig.affiliate`: `enabled`, `commissionPercent` (20%), `cookieDays` (30)
+
+---
+
+## API Key Authentication
+
+- `lib/api-auth.ts` authenticates requests using `Authorization: Bearer vmf_xxx` headers.
+- `POST /api/keys` generates a new API key (Pro+ plans only).
+- `DELETE /api/keys` revokes the current API key.
+- API keys are stored in the `User.api_key` field.
+
+---
+
+## Email Notifications
+
+`lib/email.ts` uses Resend for transactional emails (gracefully skips if `RESEND_API_KEY` is not set):
+- `sendWelcomeEmail(to)` — sent on first login/registration
+- `sendRunCompletedEmail(to, executionId, status)` — sent when an agent run completes or fails
+
 ---
 
 ## Forking for a New Product
 
 1. Fork the repo on GitHub
 2. Update `config/product.ts` — set name, agent IDs, pricing
-3. Build the customer product page (`app/(customer)/[product]/`)
+3. Customize the customer product page (`app/(customer)/[product]/`)
 4. Set up Stripe products/prices
 5. Set environment variables in Vercel
 6. Deploy and connect custom domain
-
-Estimated time per new product: **1.5 – 2.5 hours** after the template is fully built.
 
 ---
 
@@ -263,7 +360,7 @@ The build command on Vercel runs `npx prisma generate && next build`, matching t
 
 A devcontainer configuration is provided at `.devcontainer/devcontainer.json` for VS Code / GitHub Codespaces:
 
-- Base image: Node.js 20 on Debian Bullseye
+- Base image: Node.js 22
 - Auto-runs `npm install` and `npx prisma generate` on container creation
 - Forwards port 3000
 - Pre-installs VS Code extensions: Prisma, Prettier, ESLint
@@ -277,15 +374,5 @@ A devcontainer configuration is provided at `.devcontainer/devcontainer.json` fo
 3. **Route protection in middleware** — Auth is enforced at the edge in `middleware.ts`, not per-page. Add new protected path prefixes there.
 4. **Centralized config** — Pricing, branding, agent IDs, and feature flags live in `config/product.ts` to avoid magic strings scattered across the codebase.
 5. **Dual frontend** — Owner and customer UIs are separate route groups with separate layouts and middleware roles, keeping concerns cleanly separated.
-
----
-
-## What Does Not Exist Yet
-
-- `(owner)/` dashboard (KPIs, agent management, customer list)
-- `(customer)/` product interface and history pages
-- Stripe webhook handler
-- Automated tests (no Jest, Vitest, or Playwright)
-- `useAgentRun` React hook (`hooks/useAgentRun.ts`)
-
-When adding these, follow the existing App Router conventions and the dual frontend routing structure above.
+6. **API key auth** — Pro+ users can generate API keys (`vmf_` prefix) for programmatic access, authenticated via `lib/api-auth.ts`.
+7. **Affiliate tracking** — Referral codes are captured via URL params and cookies, tracked on registration.
