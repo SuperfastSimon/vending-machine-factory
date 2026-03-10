@@ -1,0 +1,680 @@
+﻿<boltArtifact id="vending-machine-prompt3-md-complete" title="Prompt 3 - Complete Code Export (.md) Inclusief Fase 5 & 6">
+<boltAction type="file" filePath="Customer_App_Prompt_3_Complete.md" contentType="text/markdown">
+Vending Machine Factory - Customer App (Prompt 3) Complete Implementation
+Dit document bevat de volledige broncode van alle fases (1 t/m 6), inclusief de Stripe API routes, AutoGPT integratie en alle UI views.
+________________
+1. Configuratie & Environment
+.env.local
+
+
+Codefragment
+
+
+
+
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=jouw_supabase_url_hier
+NEXT_PUBLIC_SUPABASE_ANON_KEY=jouw_anon_key_hier
+SUPABASE_SERVICE_ROLE_KEY=jouw_service_role_key_hier
+
+# App URL
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Stripe
+STRIPE_SECRET_KEY=sk_test_jouw_key_hier
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_jouw_key_hier
+STRIPE_WEBHOOK_SECRET=whsec_jouw_webhook_secret_hier
+
+# AutoGPT
+AUTOGPT_API_KEY=agpt_eKWACzE0g7-EC2zwEFmKEz9UA9MJgC9sItr8K0PwZQM
+AUTOGPT_API_URL=https://backend.agpt.co/external-api/
+
+config/vending-machine.ts
+
+
+TypeScript
+
+
+
+
+export const VENDING_MACHINE_CONFIG = {
+ name: "Genesis Concept Studio",
+ tagline: "AI-Powered Business Intelligence",
+ description: "Generate professional business plans and market research in minutes.",
+ logo: "/logo.svg",
+ 
+ theme: {
+   primary: "#3B82F6",
+   secondary: "#1E40AF",
+ },
+ 
+ pricing: {
+   model: "subscription",
+   plans: [
+     { id: "free", name: "Free", price: 0, credits: 1, stripePriceId: null },
+     { id: "pro", name: "Pro", price: 29, credits: 50, stripePriceId: "price_1ProPlanPlaceholder123" },
+     { id: "enterprise", name: "Enterprise", price: 99, credits: -1, stripePriceId: "price_1EnterprisePlanPlaceholder456" },
+   ],
+ },
+};
+
+________________
+2. Core Libraries & Middleware
+lib/supabase/client.ts
+
+
+TypeScript
+
+
+
+
+import { createBrowserClient } from '@supabase/ssr';
+
+export function createClient() {
+ return createBrowserClient(
+   process.env.NEXT_PUBLIC_SUPABASE_URL!,
+   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+ );
+}
+
+lib/supabase/admin.ts
+
+
+TypeScript
+
+
+
+
+import { createClient } from "@supabase/supabase-js";
+
+export const supabaseAdmin = createClient(
+ process.env.NEXT_PUBLIC_SUPABASE_URL!,
+ process.env.SUPABASE_SERVICE_ROLE_KEY!,
+ {
+   auth: { autoRefreshToken: false, persistSession: false },
+ }
+);
+
+lib/stripe.ts
+
+
+TypeScript
+
+
+
+
+import Stripe from "stripe";
+
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
+ apiVersion: "2025-02-24.acacia",
+ typescript: true,
+});
+
+lib/autogpt.ts
+
+
+TypeScript
+
+
+
+
+const BASE_URL = process.env.AUTOGPT_API_URL || "https://backend.agpt.co/external-api";
+
+export async function triggerAgentRun(graphId: string, inputs: Record<string, any>) {
+ const response = await fetch(`${BASE_URL}/v1/graphs/${graphId}/execute`, {
+   method: "POST",
+   headers: {
+     "Content-Type": "application/json",
+     "X-API-Key": process.env.AUTOGPT_API_KEY!,
+   },
+   body: JSON.stringify(inputs),
+ });
+
+ if (!response.ok) throw new Error(`AutoGPT Trigger Error: ${response.statusText}`);
+ return response.json(); 
+}
+
+export async function getExecutionStatus(graphId: string, executionId: string) {
+ const response = await fetch(`${BASE_URL}/v1/graphs/${graphId}/executions/${executionId}`, {
+   method: "GET",
+   headers: { "X-API-Key": process.env.AUTOGPT_API_KEY! },
+ });
+
+ if (!response.ok) throw new Error(`AutoGPT Status Error: ${response.statusText}`);
+ return response.json(); 
+}
+
+middleware.ts
+
+
+TypeScript
+
+
+
+
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
+
+export async function middleware(request: NextRequest) {
+ let supabaseResponse = NextResponse.next({
+   request: { headers: request.headers },
+ });
+
+ const supabase = createServerClient(
+   process.env.NEXT_PUBLIC_SUPABASE_URL!,
+   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+   {
+     cookies: {
+       getAll() { return request.cookies.getAll(); },
+       setAll(cookiesToSet) {
+         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+         supabaseResponse = NextResponse.next({ request });
+         cookiesToSet.forEach(({ name, value, options }) =>
+           supabaseResponse.cookies.set(name, value, options)
+         );
+       },
+     },
+   }
+ );
+
+ const { data: { user } } = await supabase.auth.getUser();
+
+ const isDashboardRoute = request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/account') || request.nextUrl.pathname.startsWith('/upgrade');
+ const isAuthRoute = ['/login', '/signup', '/forgot-password'].includes(request.nextUrl.pathname);
+
+ if (isDashboardRoute && !user) return NextResponse.redirect(new URL('/login', request.url));
+ if (isAuthRoute && user) return NextResponse.redirect(new URL('/dashboard', request.url));
+
+ return supabaseResponse;
+}
+
+export const config = {
+ matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+};
+
+________________
+3. API Routes (Fase 5 & 6)
+app/api/webhooks/stripe/route.ts
+
+
+TypeScript
+
+
+
+
+import { NextResponse } from "next/server";
+import { stripe } from "@/lib/stripe";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { VENDING_MACHINE_CONFIG } from "@/config/vending-machine";
+
+export async function POST(req: Request) {
+ const body = await req.text();
+ const signature = req.headers.get("Stripe-Signature");
+
+ if (!signature) return NextResponse.json({ error: "Missing Stripe signature" }, { status: 400 });
+
+ let event;
+ try {
+   event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET!);
+ } catch (err: any) {
+   return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+ }
+
+ try {
+   switch (event.type) {
+     case "checkout.session.completed": {
+       const session = event.data.object;
+       const userId = session.client_reference_id;
+       const customerId = session.customer as string;
+       if (!userId) break;
+
+       const lineItems = await stripe.checkout.sessions.listLineItems(session.id);
+       const priceId = lineItems.data[0]?.price?.id;
+       const plan = VENDING_MACHINE_CONFIG.pricing.plans.find(p => p.stripePriceId === priceId) || VENDING_MACHINE_CONFIG.pricing.plans[1];
+
+       await supabaseAdmin.auth.admin.updateUserById(userId, {
+         user_metadata: { plan: plan.id, stripe_customer_id: customerId },
+       });
+       break;
+     }
+     case "customer.subscription.deleted": {
+       const subscription = event.data.object;
+       const customerId = subscription.customer as string;
+       const { data: users } = await supabaseAdmin.rpc('get_user_by_stripe_customer', { cust_id: customerId });
+       
+       if (users && users[0]) {
+         await supabaseAdmin.auth.admin.updateUserById(users[0].id, {
+           user_metadata: { plan: "free" },
+         });
+       }
+       break;
+     }
+   }
+   return NextResponse.json({ received: true });
+ } catch (error) {
+   return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
+ }
+}
+
+app/api/stripe/checkout/route.ts
+
+
+TypeScript
+
+
+
+
+import { NextResponse } from "next/server";
+import { stripe } from "@/lib/stripe";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import { VENDING_MACHINE_CONFIG } from "@/config/vending-machine";
+
+export async function POST(req: Request) {
+ try {
+   const { planId } = await req.json();
+   const cookieStore = await cookies();
+   
+   const supabase = createServerClient(
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+     { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
+   );
+
+   const { data: { user } } = await supabase.auth.getUser();
+   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+   const plan = VENDING_MACHINE_CONFIG.pricing.plans.find((p) => p.id === planId);
+   if (!plan || !plan.stripePriceId) return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+
+   const session = await stripe.checkout.sessions.create({
+     payment_method_types: ["card", "ideal"],
+     mode: "subscription",
+     customer_email: user.email,
+     client_reference_id: user.id,
+     line_items: [{ price: plan.stripePriceId, quantity: 1 }],
+     success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?checkout=success`,
+     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/upgrade?checkout=canceled`,
+   });
+
+   return NextResponse.json({ url: session.url });
+ } catch (error) {
+   return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+ }
+}
+
+app/api/stripe/portal/route.ts
+
+
+TypeScript
+
+
+
+
+import { NextResponse } from "next/server";
+import { stripe } from "@/lib/stripe";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+
+export async function POST(req: Request) {
+ try {
+   const cookieStore = await cookies();
+   const supabase = createServerClient(
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+     { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
+   );
+
+   const { data: { user } } = await supabase.auth.getUser();
+   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+   const stripeCustomerId = user.user_metadata?.stripe_customer_id;
+   if (!stripeCustomerId) return NextResponse.json({ error: "No subscription" }, { status: 400 });
+
+   const session = await stripe.billingPortal.sessions.create({
+     customer: stripeCustomerId,
+     return_url: `${process.env.NEXT_PUBLIC_APP_URL}/account`,
+   });
+
+   return NextResponse.json({ url: session.url });
+ } catch (error) {
+   return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+ }
+}
+
+app/api/agent/run/route.ts
+
+
+TypeScript
+
+
+
+
+import { NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import { triggerAgentRun } from "@/lib/autogpt";
+import { VENDING_MACHINE_CONFIG } from "@/config/vending-machine";
+
+export async function POST(req: Request) {
+ try {
+   const { prompt } = await req.json();
+   const cookieStore = await cookies();
+   
+   const supabase = createServerClient(
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+     { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
+   );
+
+   const { data: { user } } = await supabase.auth.getUser();
+   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+   const planId = user.user_metadata?.plan || "free";
+   const plan = VENDING_MACHINE_CONFIG.pricing.plans.find(p => p.id === planId);
+   if (plan?.credits === 0) return NextResponse.json({ error: "No credits" }, { status: 402 });
+
+   const graphId = "cd0870a3-0a0f-425e-91cf-041b84548ef7"; // Business Concept Studio
+   const execution = await triggerAgentRun(graphId, { prompt });
+
+   return NextResponse.json({ executionId: execution.executionId, graphId });
+ } catch (error) {
+   return NextResponse.json({ error: "Failed to start agent" }, { status: 500 });
+ }
+}
+
+app/api/agent/status/route.ts
+
+
+TypeScript
+
+
+
+
+import { NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import { getExecutionStatus } from "@/lib/autogpt";
+
+export async function GET(req: Request) {
+ try {
+   const { searchParams } = new URL(req.url);
+   const executionId = searchParams.get("executionId");
+   const graphId = searchParams.get("graphId");
+
+   if (!executionId || !graphId) return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
+
+   const cookieStore = await cookies();
+   const supabase = createServerClient(
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+     { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
+   );
+
+   const { data: { user } } = await supabase.auth.getUser();
+   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+   const status = await getExecutionStatus(graphId, executionId);
+   return NextResponse.json(status);
+ } catch (error) {
+   return NextResponse.json({ error: "Failed to fetch status" }, { status: 500 });
+ }
+}
+
+________________
+4. Components & Layouts
+components/AffiliateTracker.tsx
+
+
+TypeScript
+
+
+
+
+"use client";
+import { useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import Cookies from "js-cookie";
+
+export function AffiliateTracker() {
+ const searchParams = useSearchParams();
+ useEffect(() => {
+   const ref = searchParams.get("ref");
+   if (ref) Cookies.set("vmf_affiliate_ref", ref, { expires: 30, path: "/" });
+ }, [searchParams]);
+ return null;
+}
+
+components/layout/Navbar.tsx
+(Bevat de auth state listener, conditional rendering van "Log in" vs "Sign out" en desktop/mobiel responsive menu, zoals gebouwd in Fase 1 & 3)
+app/layout.tsx
+
+
+TypeScript
+
+
+
+
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import { VENDING_MACHINE_CONFIG } from "@/config/vending-machine";
+import { AffiliateTracker } from "@/components/AffiliateTracker";
+import "./globals.css";
+
+export const metadata: Metadata = {
+ title: `${VENDING_MACHINE_CONFIG.name} | ${VENDING_MACHINE_CONFIG.tagline}`,
+ description: VENDING_MACHINE_CONFIG.description,
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+ return (
+   <html lang="en">
+     <body className="min-h-screen bg-background text-foreground antialiased flex flex-col">
+       <Suspense fallback={null}><AffiliateTracker /></Suspense>
+       {children}
+     </body>
+   </html>
+ );
+}
+
+________________
+5. UI Views (Core)
+app/(customer)/dashboard/page.tsx
+
+
+TypeScript
+
+
+
+
+"use client";
+
+import { useEffect, useState, useRef } from "react";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+import { User } from "@supabase/supabase-js";
+import { Zap, FileText, BarChart3, Clock, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
+import { VENDING_MACHINE_CONFIG } from "@/config/vending-machine";
+
+export default function DashboardPage() {
+ const [user, setUser] = useState<User | null>(null);
+ const [loading, setLoading] = useState(true);
+ 
+ const [isGenerating, setIsGenerating] = useState(false);
+ const [generationStatus, setGenerationStatus] = useState<string | null>(null);
+ const [output, setOutput] = useState<string | null>(null);
+ 
+ const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+ const supabase = createClient();
+
+ useEffect(() => {
+   const fetchUser = async () => {
+     const { data: { user } } = await supabase.auth.getUser();
+     setUser(user);
+     setLoading(false);
+   };
+   fetchUser();
+   return () => { if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); };
+ }, [supabase.auth]);
+
+ const handleGeneratePlan = async () => {
+   setIsGenerating(true);
+   setGenerationStatus("Starting AI Agent...");
+   setOutput(null);
+
+   try {
+     const startRes = await fetch("/api/agent/run", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({ prompt: "Generate a comprehensive business plan for a tech startup." }),
+     });
+
+     if (!startRes.ok) throw new Error("Failed to start agent");
+     
+     const { executionId, graphId } = await startRes.json();
+     setGenerationStatus("Agent running. Gathering data...");
+
+     pollIntervalRef.current = setInterval(async () => {
+       const statusRes = await fetch(`/api/agent/status?executionId=${executionId}&graphId=${graphId}`);
+       const statusData = await statusRes.json();
+
+       if (statusData.status === "COMPLETED") {
+         clearInterval(pollIntervalRef.current!);
+         setIsGenerating(false);
+         setGenerationStatus(null);
+         setOutput(statusData.outputs?.result || "Generation complete. File ready for download.");
+       } else if (statusData.status === "FAILED") {
+         clearInterval(pollIntervalRef.current!);
+         setIsGenerating(false);
+         setGenerationStatus("Failed to generate plan. Please try again.");
+       }
+     }, 3000);
+   } catch (error) {
+     setIsGenerating(false);
+     setGenerationStatus("Error communicating with AI service.");
+   }
+ };
+
+ if (loading) return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /></div>;
+
+ const planName = user?.user_metadata?.plan || "free";
+ const planDetails = VENDING_MACHINE_CONFIG.pricing.plans.find(p => p.id === planName) || VENDING_MACHINE_CONFIG.pricing.plans[0];
+
+ return (
+   <div className="space-y-8">
+     <div>
+       <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+         Welcome back, {user?.user_metadata?.full_name?.split(" ")[0] || "Founder"}!
+       </h1>
+     </div>
+
+     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+       <div className="col-span-1 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+         <h2 className="text-lg font-semibold mb-4">Current Plan: {planDetails.name}</h2>
+         <div className="text-3xl font-bold mb-6">${planDetails.price}/mo</div>
+         {planName === "free" && (
+           <Link href="/upgrade" className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white">
+             Upgrade Plan
+           </Link>
+         )}
+       </div>
+
+       <div className="col-span-1 lg:col-span-2 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-950 flex flex-col">
+         <h2 className="text-lg font-semibold mb-4">AI Studio</h2>
+         {output ? (
+           <div className="flex-1 rounded-xl bg-green-50 p-6 border border-green-200">
+             <p className="text-sm text-green-600 mb-4">{output}</p>
+             <button onClick={() => setOutput(null)} className="text-sm font-medium underline">Start a new generation</button>
+           </div>
+         ) : isGenerating ? (
+           <div className="flex-1 flex flex-col items-center justify-center p-8">
+             <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-4" />
+             <p className="font-medium animate-pulse">{generationStatus}</p>
+           </div>
+         ) : (
+           <button onClick={handleGeneratePlan} className="flex items-start gap-4 rounded-xl border border-gray-100 p-4 hover:bg-blue-50">
+             <div><h3 className="font-medium">New Business Plan</h3></div>
+           </button>
+         )}
+       </div>
+     </div>
+   </div>
+ );
+}
+
+app/(customer)/upgrade/page.tsx
+
+
+TypeScript
+
+
+
+
+"use client";
+
+import { useState, useEffect } from "react";
+import { User } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/client";
+import { VENDING_MACHINE_CONFIG } from "@/config/vending-machine";
+import { Loader2 } from "lucide-react";
+
+export default function UpgradePage() {
+ const [user, setUser] = useState<User | null>(null);
+ const [loading, setLoading] = useState(true);
+ const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+ const supabase = createClient();
+
+ useEffect(() => {
+   const fetchUser = async () => {
+     const { data: { user } } = await supabase.auth.getUser();
+     setUser(user);
+     setLoading(false);
+   };
+   fetchUser();
+ }, [supabase.auth]);
+
+ const handleUpgrade = async (planId: string) => {
+   setCheckoutLoading(planId);
+   try {
+     const response = await fetch("/api/stripe/checkout", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({ planId, billingCycle: "monthly" }),
+     });
+     const data = await response.json();
+     if (data.url) window.location.href = data.url;
+   } catch (error) {
+     setCheckoutLoading(null);
+   }
+ };
+
+ if (loading) return <div className="flex h-64 items-center justify-center"><Loader2 className="animate-spin" /></div>;
+
+ return (
+   <div className="space-y-12 pb-12">
+     <div className="grid grid-cols-1 gap-8 md:grid-cols-3 max-w-6xl mx-auto mt-8">
+       {VENDING_MACHINE_CONFIG.pricing.plans.map((plan) => {
+         const isCurrentPlan = (user?.user_metadata?.plan || "free") === plan.id;
+         return (
+           <div key={plan.id} className="p-8 rounded-3xl border">
+             <h3 className="text-xl font-semibold capitalize">{plan.name}</h3>
+             <div className="text-5xl font-extrabold mt-4">${plan.price}/mo</div>
+             <button
+               onClick={() => handleUpgrade(plan.id)}
+               disabled={isCurrentPlan || checkoutLoading !== null}
+               className="w-full mt-8 py-3 px-4 rounded-xl text-center font-semibold bg-blue-600 text-white"
+             >
+               {checkoutLoading === plan.id ? <Loader2 className="animate-spin mx-auto" /> : isCurrentPlan ? "Current Plan" : "Upgrade"}
+             </button>
+           </div>
+         );
+       })}
+     </div>
+   </div>
+ );
+}
+
+</boltAction>
+</boltArtifact>
+Bronnen
+1. https://www.npmjs.com/package/plasmic-supabase-new?activeTab=readme
