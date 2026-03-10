@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-client";
+import { friendlyAuthError } from "@/lib/auth-utils";
 import { useRouter } from "next/navigation";
 
 export default function Register() {
@@ -21,11 +22,7 @@ export default function Register() {
     const { error } = await supabase.auth.signUp({ email, password });
 
     if (error) {
-      setError(
-        error.message === "Invalid API key"
-          ? "Service not configured. Please contact support."
-          : error.message
-      );
+      setError(friendlyAuthError(error.message));
       setLoading(false);
       return;
     }

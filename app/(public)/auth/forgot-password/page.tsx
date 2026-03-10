@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-client";
+import { friendlyAuthError } from "@/lib/auth-utils";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -23,11 +24,7 @@ export default function ForgotPassword() {
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
 
     if (error) {
-      setError(
-        error.message === "Failed to fetch"
-          ? "Unable to connect. Please check your internet connection."
-          : error.message
-      );
+      setError(friendlyAuthError(error.message));
       setLoading(false);
       return;
     }
