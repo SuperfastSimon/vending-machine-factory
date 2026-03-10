@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createBrowserClient } from "@supabase/ssr";
+import { createSupabaseBrowserClient } from "@/lib/supabase-client";
 import { useRouter } from "next/navigation";
 
 function friendlyError(message: string): string {
@@ -18,10 +18,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabase = createSupabaseBrowserClient();
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();

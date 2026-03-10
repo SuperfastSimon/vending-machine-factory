@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createBrowserClient } from "@supabase/ssr";
+import { createSupabaseBrowserClient } from "@/lib/supabase-client";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -9,10 +9,7 @@ export default function ForgotPassword() {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabase = createSupabaseBrowserClient();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
