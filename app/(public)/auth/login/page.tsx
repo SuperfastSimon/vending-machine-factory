@@ -1,8 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { createBrowserClient } from "@supabase/ssr";
+import { createSupabaseBrowserClient } from "@/lib/supabase-client";
 import { useRouter } from "next/navigation";
+
+function friendlyError(message: string): string {
+  if (message === "Invalid API key") return "Service not configured. Please contact support.";
+  if (message === "Failed to fetch") return "Unable to connect. Please check your internet connection and try again.";
+  if (message === "Invalid login credentials") return "Incorrect email or password.";
+  return message;
+}
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -11,10 +18,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabase = createSupabaseBrowserClient();
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -24,11 +28,7 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      setError(
-        error.message === "Invalid API key"
-          ? "Service not configured. Please contact support."
-          : error.message
-      );
+      setError(friendlyError(error.message));
       setLoading(false);
       return;
     }
@@ -66,9 +66,14 @@ export default function Login() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Password
+              </label>
+              <a href="/auth/forgot-password" className="text-xs text-indigo-600 hover:underline">
+                Forgot password?
+              </a>
+            </div>
             <input
               id="password"
               type="password"

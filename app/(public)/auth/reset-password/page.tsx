@@ -4,33 +4,37 @@ import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-client";
 import { useRouter } from "next/navigation";
 
-export default function Register() {
-  const [email, setEmail] = useState("");
+export default function ResetPassword() {
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const supabase = createSupabaseBrowserClient();
 
-  async function handleRegister(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signUp({ email, password });
+    if (password !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      setError(
-        error.message === "Invalid API key"
-          ? "Service not configured. Please contact support."
-          : error.message
-      );
+      setError(error.message);
       setLoading(false);
       return;
     }
 
-    // Prisma user is created automatically on first dashboard load
     router.push("/dashboard");
   }
 
@@ -44,36 +48,35 @@ export default function Register() {
           </div>
         </div>
 
-        <h1 className="text-2xl font-bold text-gray-900 text-center">Create your account</h1>
-        <p className="mt-1 text-sm text-gray-500 text-center">Free plan · 5 credits included · no card needed</p>
+        <h1 className="text-2xl font-bold text-gray-900 text-center">Choose a new password</h1>
+        <p className="mt-1 text-sm text-gray-500 text-center">Must be at least 8 characters.</p>
 
-        <form onSubmit={handleRegister} className="mt-8 space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
-          </div>
-
+        <form onSubmit={handleSubmit} className="mt-8 space-y-4">
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
+              New password
             </label>
             <input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="min. 6 characters"
-              minLength={6}
+              placeholder="••••••••"
+              required
+              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="confirm" className="block text-sm font-medium text-gray-700 mb-1">
+              Confirm new password
+            </label>
+            <input
+              id="confirm"
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="••••••••"
               required
               className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
@@ -90,16 +93,9 @@ export default function Register() {
             disabled={loading}
             className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
           >
-            {loading ? "Creating account..." : "Create account"}
+            {loading ? "Saving..." : "Set new password"}
           </button>
         </form>
-
-        <p className="mt-6 text-center text-sm text-gray-500">
-          Already have an account?{" "}
-          <a href="/auth/login" className="text-indigo-600 font-medium hover:underline">
-            Sign in
-          </a>
-        </p>
       </div>
     </div>
   );
