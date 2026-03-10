@@ -2,6 +2,46 @@
 
 This file provides AI assistants with context about the codebase structure, conventions, and workflows.
 
+---
+
+## Current Session Status (last updated: 2026-03-10)
+
+### Active PR
+**Branch:** `claude/fix-github-vercel-integration-7lshW`
+**Status:** Pushed, ready to merge into `main` — PR needs to be created manually on GitHub (gh CLI not available).
+
+### What's in the PR (all tested, 28/28 passing)
+- `app/(public)/auth/callback/route.ts` — NEW: Supabase email verification callback handler
+- `app/api/cron/health/route.ts` — enhanced: verifies DB connectivity, not just uptime
+- `components/` + `package.json` — added `@vercel/speed-insights`
+- `app/api/webhooks/autogpt/route.ts` — security: `AUTOGPT_WEBHOOK_SECRET` now required, uses `timingSafeEqual`
+- `.github/workflows/ci.yml` — CI upgraded from Node 20 → 22
+- `.env.example` — added
+- `__tests__/autogpt-webhook.test.ts` — updated for required secret
+
+### Open PRs to CLOSE (do not merge)
+- PR #1 — Vercel bot Speed Insights (wrong package manager)
+- PR #6 — Speed Insights only (superseded)
+- PR #10 — Documentation/security (all cherry-picked into active branch)
+- PR #14 — Health check + Next.js v15 (Next.js v15 removed, health check superseded)
+
+### Pending manual steps (user needs to do in dashboards)
+1. **Supabase → Authentication → URL Configuration**
+   - Site URL → `https://your-app.vercel.app`
+   - Redirect URLs → add `https://your-app.vercel.app/auth/callback`
+2. **Vercel → Settings → Environment Variables** — confirm these are set:
+   - `POSTGRES_URL` (Supabase → Settings → Database → Transaction connection string)
+   - `POSTGRES_URL_NON_POOLING` (Supabase → Settings → Database → Session connection string)
+   - `NEXT_PUBLIC_SUPABASE_URL` ✅ (user confirmed set)
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` ✅ (user confirmed set)
+   - `NEXT_PUBLIC_APP_URL` → `https://your-app.vercel.app`
+3. **Merge the PR** on GitHub after above steps
+
+### Known remaining issues (after PR merge + env vars)
+- None known — auth flow, DB, webhooks, health check all wired up
+
+---
+
 ## Project Overview
 
 **Vending Machine Factory** is a micro-SaaS starter template for building AI-powered SaaS products. Fork it, configure the agent, customize the UI, deploy. Each fork becomes one "vending machine" — a product where customers pay to run an AutoGPT agent and receive value.

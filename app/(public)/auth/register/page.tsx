@@ -24,7 +24,11 @@ export default function Register() {
     const { error } = await supabase.auth.signUp({ email, password });
 
     if (error) {
-      setError(error.message);
+      setError(
+        error.message === "Invalid API key"
+          ? "Service not configured. Please contact support."
+          : error.message
+      );
       setLoading(false);
       return;
     }
