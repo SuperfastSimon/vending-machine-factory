@@ -27,30 +27,32 @@ function makeRequest(body: unknown, headers: Record<string, string> = {}) {
   });
 }
 
+const TEST_SECRET = "test-webhook-secret";
+
 describe("POST /api/webhooks/autogpt", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    delete process.env.AUTOGPT_WEBHOOK_SECRET;
+    process.env.AUTOGPT_WEBHOOK_SECRET = TEST_SECRET;
   });
 
   it("returns 400 for invalid JSON", async () => {
     const req = new NextRequest("http://localhost:3000/api/webhooks/autogpt", {
       method: "POST",
       body: "not json",
+      headers: { "x-autogpt-signature": TEST_SECRET },
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
   });
 
   it("returns 400 for missing required fields", async () => {
-    const res = await POST(makeRequest({ runId: "r1" }));
+    const res = await POST(makeRequest({ runId: "r1" }, { "x-autogpt-signature": TEST_SECRET }));
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toBe("Missing required fields");
   });
 
   it("returns 401 for invalid signature when secret is set", async () => {
-    process.env.AUTOGPT_WEBHOOK_SECRET = "my-secret";
     const res = await POST(
       makeRequest(
         { runId: "r1", agentId: "a1", status: "completed" },
@@ -60,6 +62,12 @@ describe("POST /api/webhooks/autogpt", () => {
     expect(res.status).toBe(401);
   });
 
+  it("returns 500 when AUTOGPT_WEBHOOK_SECRET is not configured", async () => {
+    delete process.env.AUTOGPT_WEBHOOK_SECRET;
+    const res = await POST(makeRequest({ runId: "r1", agentId: "a1", status: "completed" }));
+    expect(res.status).toBe(500);
+  });
+
   it("persists run results and returns success", async () => {
     const payload = {
       runId: "run-123",
@@ -67,7 +75,7 @@ describe("POST /api/webhooks/autogpt", () => {
       status: "completed",
       output: "result text",
     };
-    const res = await POST(makeRequest(payload));
+    const res = await POST(makeRequest(payload, { "x-autogpt-signature": TEST_SECRET }));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.received).toBe(true);

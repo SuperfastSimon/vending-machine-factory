@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { runId, agentId, status } = payload;
+  const { runId, agentId, status, output, error } = payload;
 
   if (!runId || !agentId || !status) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
