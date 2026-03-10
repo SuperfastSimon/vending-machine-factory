@@ -4,16 +4,9 @@ import { useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 
-function friendlyError(message: string): string {
-  if (message === "Invalid API key") return "Service not configured. Please contact support.";
-  if (message === "Failed to fetch") return "Unable to connect. Please check your internet connection and try again.";
-  if (message === "Invalid login credentials") return "Incorrect email or password.";
-  return message;
-}
-
-export default function Login() {
-  const [email, setEmail] = useState("");
+export default function ResetPassword() {
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -23,15 +16,24 @@ export default function Login() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (password !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      setError(friendlyError(error.message));
+      setError(error.message);
       setLoading(false);
       return;
     }
@@ -49,39 +51,34 @@ export default function Login() {
           </div>
         </div>
 
-        <h1 className="text-2xl font-bold text-gray-900 text-center">Welcome back</h1>
-        <p className="mt-1 text-sm text-gray-500 text-center">Sign in to your account</p>
+        <h1 className="text-2xl font-bold text-gray-900 text-center">Choose a new password</h1>
+        <p className="mt-1 text-sm text-gray-500 text-center">Must be at least 8 characters.</p>
 
-        <form onSubmit={handleLogin} className="mt-8 space-y-4">
+        <form onSubmit={handleSubmit} className="mt-8 space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              New password
             </label>
             <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
               required
               className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <a href="/auth/forgot-password" className="text-xs text-indigo-600 hover:underline">
-                Forgot password?
-              </a>
-            </div>
+            <label htmlFor="confirm" className="block text-sm font-medium text-gray-700 mb-1">
+              Confirm new password
+            </label>
             <input
-              id="password"
+              id="confirm"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
               placeholder="••••••••"
               required
               className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -99,16 +96,9 @@ export default function Login() {
             disabled={loading}
             className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? "Saving..." : "Set new password"}
           </button>
         </form>
-
-        <p className="mt-6 text-center text-sm text-gray-500">
-          No account?{" "}
-          <a href="/auth/register" className="text-indigo-600 font-medium hover:underline">
-            Create one free
-          </a>
-        </p>
       </div>
     </div>
   );
