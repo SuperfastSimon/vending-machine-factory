@@ -2,14 +2,8 @@
 
 import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-client";
+import { friendlyAuthError } from "@/lib/auth-utils";
 import { useRouter } from "next/navigation";
-
-function friendlyError(message: string): string {
-  if (message === "Invalid API key") return "Service not configured. Please contact support.";
-  if (message === "Failed to fetch") return "Unable to connect. Please check your internet connection and try again.";
-  if (message === "Invalid login credentials") return "Incorrect email or password.";
-  return message;
-}
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -28,7 +22,7 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      setError(friendlyError(error.message));
+      setError(friendlyAuthError(error.message));
       setLoading(false);
       return;
     }
