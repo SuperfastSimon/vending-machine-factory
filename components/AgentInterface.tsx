@@ -17,9 +17,7 @@ export default function AgentInterface({ credits, inputSchema }: Props) {
   const [prompt, setPrompt] = useState("");
   const [creditsLeft, setCreditsLeft] = useState(credits);
 
-  const { status, output, error, elapsed, submit, reset } = useAgentRun({
-    onComplete: () => {},
-  });
+  const { status, output, error, elapsed, submit, reset } = useAgentRun();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

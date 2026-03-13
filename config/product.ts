@@ -42,7 +42,22 @@ export const productConfig = {
     commissionPercent: 20,
     cookieDays: 30,
   },
+
+  /** Minimum password length enforced across all auth forms. */
+  minPasswordLength: 8,
 };
+
+// -------------------------------------------------------
+// Derived helpers — single source of truth for plan credits
+// -------------------------------------------------------
+
+/** Map of plan ID → credit quota. Used by agent run route and Stripe webhook. */
+export const creditsForPlan: Record<string, number> = Object.fromEntries(
+  productConfig.pricing.plans.map((p) => [p.id, p.credits])
+);
+
+/** Default plan applied on subscription cancellation. */
+export const FREE_PLAN = productConfig.pricing.plans.find((p) => p.id === "free")!;
 
 // -------------------------------------------------------
 // Available AutoGPT agents — copy IDs into agent above

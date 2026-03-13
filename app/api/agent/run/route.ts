@@ -2,27 +2,15 @@
 // Customer hits this to trigger an agent run
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { createSupabaseRouteClient } from "@/lib/supabase-server";
 import { triggerAgentRun } from "@/lib/autogpt";
-import { productConfig } from "@/config/product";
+import { productConfig, creditsForPlan } from "@/config/product";
 import { prisma } from "@/lib/prisma";
 import { authenticateApiKey } from "@/lib/api-auth";
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value;
-          },
-          set(_name: string, _value: string) {},
-          remove(_name: string) {},
-        },
-      }
-    );
+    const supabase = createSupabaseRouteClient(request);
 
     // 1. Authenticate via Supabase session or API key
     let userId: string | null = null;
@@ -46,8 +34,7 @@ export async function POST(request: NextRequest) {
     // 2. Check the user has a credit quota
     const dbUser = await prisma.user.findUnique({ where: { id: userId } });
     if (!dbUser || dbUser.credits_remaining < 1) {
-      const hasQuota = await checkUserQuota(dbUser?.plan ?? "free");
-      if (!hasQuota) {
+      if (!checkUserQuota(dbUser?.plan ?? "free")) {
         return NextResponse.json(
           { error: "Usage limit reached. Please upgrade your plan." },
           { status: 429 }
@@ -77,15 +64,10 @@ export async function POST(request: NextRequest) {
 
 // ─── helpers ─────────────────────────────────────────────────
 
-function checkUserQuota(plan: string): Promise<boolean> {
-  const quotas: Record<string, number> = {
-    free: 5,
-    pro: 100,
-    business: 500,
-  };
-  // quota check is handled by credits_remaining in the DB;
-  // this is a fallback for unknown plans
-  return Promise.resolve((quotas[plan] ?? 0) > 0);
+function checkUserQuota(plan: string): boolean {
+  // Primary check is credits_remaining in the DB;
+  // this is a fallback for unknown plans.
+  return (creditsForPlan[plan] ?? 0) > 0;
 }
 
 async function logUsage(userId: string, executionId: string, agentId: string): Promise<void> {

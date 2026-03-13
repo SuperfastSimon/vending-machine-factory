@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
-import { productConfig } from "@/config/product";
+import { creditsForPlan, FREE_PLAN } from "@/config/product";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
-
-const creditsForPlan: Record<string, number> = Object.fromEntries(
-  productConfig.pricing.plans.map((p) => [p.id, p.credits])
-);
 
 export async function POST(request: NextRequest) {
   const body = await request.text();
@@ -43,7 +39,7 @@ export async function POST(request: NextRequest) {
           where: { id: userId },
           data: {
             plan,
-            credits_remaining: creditsForPlan[plan] ?? 5,
+            credits_remaining: creditsForPlan[plan] ?? FREE_PLAN.credits,
             ...(stripeCustomerId && { stripe_customer_id: stripeCustomerId }),
           },
         });
@@ -61,7 +57,7 @@ export async function POST(request: NextRequest) {
       if (user) {
         await prisma.user.update({
           where: { id: user.id },
-          data: { credits_remaining: creditsForPlan[user.plan] ?? 5 },
+          data: { credits_remaining: creditsForPlan[user.plan] ?? FREE_PLAN.credits },
         });
         console.log(`[stripe] credits refreshed for user ${user.id}`);
       }
@@ -73,7 +69,7 @@ export async function POST(request: NextRequest) {
       const customerId = subscription.customer as string;
       await prisma.user.updateMany({
         where: { stripe_customer_id: customerId },
-        data: { plan: "free", credits_remaining: 5 },
+        data: { plan: FREE_PLAN.id, credits_remaining: FREE_PLAN.credits },
       });
       console.log(`[stripe] subscription cancelled for customer ${customerId}`);
       break;

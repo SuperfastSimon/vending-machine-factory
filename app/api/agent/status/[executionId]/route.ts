@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { createSupabaseRouteClient } from "@/lib/supabase-server";
 import { getExecutionStatus } from "@/lib/autogpt";
 import { productConfig } from "@/config/product";
 
@@ -7,19 +7,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ executionId: string }> }
 ) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
-        },
-        set(_name: string, _value: string) {},
-        remove(_name: string) {},
-      },
-    }
-  );
+  const supabase = createSupabaseRouteClient(request);
 
   const {
     data: { user },
