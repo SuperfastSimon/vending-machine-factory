@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-client";
 import { friendlyAuthError } from "@/lib/auth-utils";
+import { productConfig } from "@/config/product";
 import { useRouter } from "next/navigation";
 
 export default function Register() {
@@ -13,6 +14,7 @@ export default function Register() {
   const router = useRouter();
 
   const supabase = createSupabaseBrowserClient();
+  const minLen = productConfig.minPasswordLength;
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
@@ -69,8 +71,8 @@ export default function Register() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="min. 6 characters"
-              minLength={6}
+              placeholder={`min. ${minLen} characters`}
+              minLength={minLen}
               required
               className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
