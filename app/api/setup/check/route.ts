@@ -44,8 +44,8 @@ async function checkSupabase(): Promise<boolean> {
 }
 
 async function checkDatabase(): Promise<boolean> {
-  if (!process.env.DATABASE_URL) return false;
-  // We import prisma lazily so the module doesn't crash when DATABASE_URL is absent
+  if (!process.env.POSTGRES_URL) return false;
+  // We import prisma lazily so the module doesn't crash when POSTGRES_URL is absent
   try {
     const { prisma } = await import("@/lib/prisma");
     await prisma.$queryRaw`SELECT 1`;
