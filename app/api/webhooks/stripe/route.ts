@@ -1,17 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
-import { prisma } from "@/lib/prisma";
 import { productConfig } from "@/config/product";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2023-10-16",
-});
+import { isStripeConfigured, isDatabaseConfigured } from "@/lib/env";
 
 const creditsForPlan: Record<string, number> = Object.fromEntries(
   productConfig.pricing.plans.map((p) => [p.id, p.credits])
 );
+const FREE_PLAN = productConfig.pricing.plans.find((p) => p.id === "free")!;
 
 export async function POST(request: NextRequest) {
+  // ── Guard: Stripe must be configured ──────────────────────
+  if (!isStripeConfigured()) {
+    return NextResponse.json(
+      { error: "Stripe is not configured." },
+      { status: 503 }
+    );
+  }
+  if (!isDatabaseConfigured()) {
+    return NextResponse.json(
+      { error: "Database is not configured." },
+      { status: 503 }
+    );
+  }
+
+  const Stripe = (await import("stripe")).default;
+  const { prisma } = await import("@/lib/prisma");
+
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: "2023-10-16",
+  });
+
   const body = await request.text();
   const signature = request.headers.get("stripe-signature");
 
@@ -19,7 +36,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing signature" }, { status: 400 });
   }
 
-  let event: Stripe.Event;
+  let event: import("stripe").default.Event;
   try {
     event = stripe.webhooks.constructEvent(
       body,
@@ -33,7 +50,7 @@ export async function POST(request: NextRequest) {
 
   switch (event.type) {
     case "checkout.session.completed": {
-      const session = event.data.object as Stripe.Checkout.Session;
+      const session = event.data.object as import("stripe").default.Checkout.Session;
       const userId = session.metadata?.userId;
       const plan = session.metadata?.plan;
       if (userId && plan) {
@@ -43,7 +60,7 @@ export async function POST(request: NextRequest) {
           where: { id: userId },
           data: {
             plan,
-            credits_remaining: creditsForPlan[plan] ?? 5,
+            credits_remaining: creditsForPlan[plan] ?? FREE_PLAN.credits,
             ...(stripeCustomerId && { stripe_customer_id: stripeCustomerId }),
           },
         });
@@ -53,7 +70,7 @@ export async function POST(request: NextRequest) {
     }
 
     case "invoice.paid": {
-      const invoice = event.data.object as Stripe.Invoice;
+      const invoice = event.data.object as import("stripe").default.Invoice;
       const customerId = invoice.customer as string;
       const user = await prisma.user.findFirst({
         where: { stripe_customer_id: customerId },
@@ -61,7 +78,7 @@ export async function POST(request: NextRequest) {
       if (user) {
         await prisma.user.update({
           where: { id: user.id },
-          data: { credits_remaining: creditsForPlan[user.plan] ?? 5 },
+          data: { credits_remaining: creditsForPlan[user.plan] ?? FREE_PLAN.credits },
         });
         console.log(`[stripe] credits refreshed for user ${user.id}`);
       }
@@ -69,11 +86,11 @@ export async function POST(request: NextRequest) {
     }
 
     case "customer.subscription.deleted": {
-      const subscription = event.data.object as Stripe.Subscription;
+      const subscription = event.data.object as import("stripe").default.Subscription;
       const customerId = subscription.customer as string;
       await prisma.user.updateMany({
         where: { stripe_customer_id: customerId },
-        data: { plan: "free", credits_remaining: 5 },
+        data: { plan: FREE_PLAN.id, credits_remaining: FREE_PLAN.credits },
       });
       console.log(`[stripe] subscription cancelled for customer ${customerId}`);
       break;

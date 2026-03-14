@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-client";
+import { friendlyAuthError } from "@/lib/auth-utils";
+import { productConfig } from "@/config/product";
 import { useRouter } from "next/navigation";
 
 export default function ResetPassword() {
@@ -12,6 +14,7 @@ export default function ResetPassword() {
   const router = useRouter();
 
   const supabase = createSupabaseBrowserClient();
+  const minLen = productConfig.minPasswordLength;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,8 +24,8 @@ export default function ResetPassword() {
       setError("Passwords do not match.");
       return;
     }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    if (password.length < minLen) {
+      setError(`Password must be at least ${minLen} characters.`);
       return;
     }
 
@@ -30,7 +33,7 @@ export default function ResetPassword() {
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      setError(error.message);
+      setError(friendlyAuthError(error.message));
       setLoading(false);
       return;
     }
@@ -49,7 +52,7 @@ export default function ResetPassword() {
         </div>
 
         <h1 className="text-2xl font-bold text-gray-900 text-center">Choose a new password</h1>
-        <p className="mt-1 text-sm text-gray-500 text-center">Must be at least 8 characters.</p>
+        <p className="mt-1 text-sm text-gray-500 text-center">Must be at least {minLen} characters.</p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
           <div>
@@ -63,6 +66,7 @@ export default function ResetPassword() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
+              minLength={minLen}
               className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
           </div>
@@ -78,6 +82,7 @@ export default function ResetPassword() {
               onChange={(e) => setConfirm(e.target.value)}
               placeholder="••••••••"
               required
+              minLength={minLen}
               className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
           </div>

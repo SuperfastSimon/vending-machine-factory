@@ -9,6 +9,8 @@
 // Scopes: EXECUTE_GRAPH, READ_GRAPH
 // ===============================================================
 
+import { isAutoGPTConfigured } from "@/lib/env";
+
 // ------------------------------------------------------
 // TYPES
 // ------------------------------------------------------
@@ -36,16 +38,35 @@ export interface AgentRunRequest {
 
 const AUTOGPT_BASE_URL =
   process.env.AUTOGPT_API_URL ?? "https://backend.agpt.co/external-api";
-const API_KEY = process.env.AUTOGPT_API_KEY!;
+
+function getApiKey(): string {
+  const key = process.env.AUTOGPT_API_KEY;
+  if (!key) {
+    throw new AutoGPTNotConfiguredError();
+  }
+  return key;
+}
+
+/** Thrown when the AUTOGPT_API_KEY env var is missing. */
+export class AutoGPTNotConfiguredError extends Error {
+  constructor() {
+    super(
+      "AutoGPT API key is not configured. Set AUTOGPT_API_KEY in your environment variables."
+    );
+    this.name = "AutoGPTNotConfiguredError";
+  }
+}
 
 async function autogptFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<Response> {
+  const apiKey = getApiKey(); // throws if missing
+
   const response = await fetch(`${AUTOGPT_BASE_URL}${endpoint}`, {
     ...options,
     headers: {
-      "X-API-Key": API_KEY,
+      "X-API-Key": apiKey,
       "Content-Type": "application/json",
       ...options.headers,
     },
