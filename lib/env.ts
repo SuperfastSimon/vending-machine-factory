@@ -38,7 +38,7 @@ export function isStripePublicConfigured(): boolean {
 }
 
 export function isDatabaseConfigured(): boolean {
-  return !!process.env.DATABASE_URL;
+  return !!process.env.POSTGRES_URL;
 }
 
 export function isResendConfigured(): boolean {
@@ -70,9 +70,10 @@ export function getEnvStatus(): {
       name: "Database (Prisma)",
       configured: isDatabaseConfigured(),
       missing: [
-        !process.env.DATABASE_URL && "DATABASE_URL",
+        !process.env.POSTGRES_URL && "POSTGRES_URL",
+        !process.env.POSTGRES_URL_NON_POOLING && "POSTGRES_URL_NON_POOLING",
       ].filter(Boolean) as string[],
-      hint: "Prisma connection string. Usually the Supabase pooler URL.",
+      hint: "Connection strings from Supabase → Settings → Database. Use the pooler (port 6543) for POSTGRES_URL.",
     },
     {
       name: "AutoGPT Agent API",
