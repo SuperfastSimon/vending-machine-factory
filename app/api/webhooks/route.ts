@@ -4,12 +4,12 @@ import Stripe from 'stripe';
 import { createClient } from '../../../lib/supabase/server';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20',
+  apiVersion: '2026-02-25.clover',
 });
 
 export async function POST(req: Request) {
   const body = await req.text();
-  const signature = (await headers()).get('Stripe-Signature')!;
+  const signature = (await headers()).get('stripe-signature')!;
 
   try {
     const event = stripe.webhooks.constructEvent(
@@ -22,8 +22,6 @@ export async function POST(req: Request) {
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      
-      // Update klant naar premium in Supabase
       await supabase
         .from('customers')
         .update({ subscription_tier: 'premium' })
