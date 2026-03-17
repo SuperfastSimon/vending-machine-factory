@@ -22,7 +22,7 @@ export default function AuthPage() {
     if (error) setMessage(error.message);
     else setMessage(type === 'login' ? 'Inloggen...' : 'Check je e-mail!');
     setLoading(false);
-    if (!error && type === 'login') window.location.href = '/app/dashboard';
+    if (!error && type === 'login') window.location.href = '/dashboard';
   };
 
   return (
