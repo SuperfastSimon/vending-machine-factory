@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
-export async function middleware(request: NextRequest) {
+// Hernoem de functie naar 'proxy' voor Next.js 16 compatibiliteit
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -21,7 +22,7 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Bescherm /app en /dashboard routes
+  // Redirect naar auth als niet ingelogd op afgeschermde routes
   if (!user && (request.nextUrl.pathname.startsWith('/app') || request.nextUrl.pathname.startsWith('/dashboard'))) {
     return NextResponse.redirect(new URL('/auth', request.url));
   }
