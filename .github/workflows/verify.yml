@@ -1,0 +1,37 @@
+name: Monorepo Status Check
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+# Concurrency zorgt dat oude runs stoppen als je snel achter elkaar pusht
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm' # WAARSCHUWING: Verander dit naar 'pnpm' of 'yarn' als je dat gebruikt
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Turborepo Lint
+        run: npm run lint
+        
+      - name: Turborepo Typecheck
+        run: npm run typecheck
+        
+      - name: Turborepo Build (Dry Run)
+        run: npm run build

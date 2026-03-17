@@ -17,5 +17,10 @@
   "bugs": {
     "url": "https://github.com/SuperfastSimon/vending-machine-factory/issues"
   },
-  "homepage": "https://github.com/SuperfastSimon/vending-machine-factory#readme"
+  "homepage": "https://github.com/SuperfastSimon/vending-machine-factory#readme",
+  "dependencies": {
+    "next": "^16.1.7",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  }
 }
